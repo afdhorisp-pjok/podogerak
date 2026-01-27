@@ -1,13 +1,55 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState, useEffect } from 'react';
+import { LoginForm } from '@/components/LoginForm';
+import { Dashboard } from '@/components/Dashboard';
+import { UserData } from '@/lib/workoutData';
+import { getUser, saveUser } from '@/lib/storage';
 
 const Index = () => {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+  const [user, setUser] = useState<UserData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const savedUser = getUser();
+    if (savedUser) {
+      setUser(savedUser);
+    }
+    setIsLoading(false);
+  }, []);
+
+  const handleLogin = (newUser: UserData) => {
+    setUser(newUser);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+  };
+
+  const handleUserUpdate = (updatedUser: UserData) => {
+    setUser(updatedUser);
+    saveUser(updatedUser);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-hero flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl animate-bounce-soft mb-4">🏃‍♂️</div>
+          <p className="text-lg text-muted-foreground">Memuat PodoGerak...</p>
+        </div>
       </div>
-    </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginForm onLogin={handleLogin} />;
+  }
+
+  return (
+    <Dashboard 
+      user={user} 
+      onLogout={handleLogout} 
+      onUserUpdate={handleUserUpdate}
+    />
   );
 };
 
