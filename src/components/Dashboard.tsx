@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { UserData, ExerciseCategory, AVATARS } from '@/lib/workoutData';
 import { logoutUser } from '@/lib/storage';
+import { getEarnedBadges, getNewlyEarnedBadges, Badge } from '@/lib/badgeData';
 import { StatsCard } from './StatsCard';
 import { CategoryCard } from './CategoryCard';
 import { ParentGuideModal } from './ParentGuideModal';
@@ -9,6 +10,8 @@ import { WorkoutTimer } from './WorkoutTimer';
 import { HistorySection } from './HistorySection';
 import { ScheduleSection } from './ScheduleSection';
 import { EducationPage } from './EducationPage';
+import { BadgesSection } from './BadgesSection';
+import { NewBadgeModal } from './NewBadgeModal';
 import { LogOut, BookOpen, Users } from 'lucide-react';
 
 interface DashboardProps {
@@ -21,8 +24,23 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   const [showParentGuide, setShowParentGuide] = useState(false);
   const [activeWorkout, setActiveWorkout] = useState<ExerciseCategory | null>(null);
   const [showEducation, setShowEducation] = useState(false);
+  const [newBadges, setNewBadges] = useState<Badge[]>([]);
+  const [showNewBadgeModal, setShowNewBadgeModal] = useState(false);
+  const [previousBadgeIds, setPreviousBadgeIds] = useState<string[]>(() => 
+    getEarnedBadges(user).map(b => b.id)
+  );
 
   const avatar = AVATARS.find(a => a.id === user.avatar);
+
+  // Check for newly earned badges when user data changes
+  useEffect(() => {
+    const newlyEarned = getNewlyEarnedBadges(previousBadgeIds, user);
+    if (newlyEarned.length > 0) {
+      setNewBadges(newlyEarned);
+      setShowNewBadgeModal(true);
+      setPreviousBadgeIds(getEarnedBadges(user).map(b => b.id));
+    }
+  }, [user.totalSessions, user.streakDays, user.workoutHistory.length]);
 
   const handleLogout = () => {
     logoutUser();
@@ -150,6 +168,9 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
           </div>
         </section>
 
+        {/* Badges Section */}
+        <BadgesSection user={user} />
+
         {/* Schedule & History */}
         <div className="grid md:grid-cols-2 gap-6">
           <ScheduleSection user={user} onUpdate={onUserUpdate} />
@@ -171,6 +192,13 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
       <ParentGuideModal
         open={showParentGuide}
         onClose={() => setShowParentGuide(false)}
+      />
+
+      {/* New Badge Modal */}
+      <NewBadgeModal
+        badges={newBadges}
+        open={showNewBadgeModal}
+        onClose={() => setShowNewBadgeModal(false)}
       />
     </div>
   );
