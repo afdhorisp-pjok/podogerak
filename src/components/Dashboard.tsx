@@ -12,7 +12,8 @@ import { ScheduleSection } from './ScheduleSection';
 import { EducationPage } from './EducationPage';
 import { BadgesSection } from './BadgesSection';
 import { NewBadgeModal } from './NewBadgeModal';
-import { LogOut, BookOpen, Users } from 'lucide-react';
+import { ProgressReport } from './ProgressReport';
+import { LogOut, BookOpen, Users, BarChart3 } from 'lucide-react';
 
 interface DashboardProps {
   user: UserData;
@@ -24,9 +25,10 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   const [showParentGuide, setShowParentGuide] = useState(false);
   const [activeWorkout, setActiveWorkout] = useState<ExerciseCategory | null>(null);
   const [showEducation, setShowEducation] = useState(false);
+  const [showProgressReport, setShowProgressReport] = useState(false);
   const [newBadges, setNewBadges] = useState<Badge[]>([]);
   const [showNewBadgeModal, setShowNewBadgeModal] = useState(false);
-  const [previousBadgeIds, setPreviousBadgeIds] = useState<string[]>(() => 
+  const [previousBadgeIds, setPreviousBadgeIds] = useState<string[]>(() =>
     getEarnedBadges(user).map(b => b.id)
   );
 
@@ -56,6 +58,10 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
 
   if (showEducation) {
     return <EducationPage onBack={() => setShowEducation(false)} />;
+  }
+
+  if (showProgressReport) {
+    return <ProgressReport user={user} onBack={() => setShowProgressReport(false)} />;
   }
 
   if (activeWorkout) {
@@ -125,22 +131,30 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
         </section>
 
         {/* Quick Actions */}
-        <section className="flex gap-3">
+        <section className="grid grid-cols-3 gap-3">
           <Button
             variant="outline"
             onClick={() => setShowParentGuide(true)}
-            className="flex-1"
+            className="flex-col h-auto py-3 gap-1"
           >
-            <Users className="w-4 h-4" />
-            Panduan Orang Tua
+            <Users className="w-5 h-5" />
+            <span className="text-xs">Panduan</span>
           </Button>
           <Button
             variant="outline"
             onClick={() => setShowEducation(true)}
-            className="flex-1"
+            className="flex-col h-auto py-3 gap-1"
           >
-            <BookOpen className="w-4 h-4" />
-            Edukasi
+            <BookOpen className="w-5 h-5" />
+            <span className="text-xs">Edukasi</span>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowProgressReport(true)}
+            className="flex-col h-auto py-3 gap-1"
+          >
+            <BarChart3 className="w-5 h-5" />
+            <span className="text-xs">Laporan</span>
           </Button>
         </section>
 
