@@ -21,6 +21,8 @@ export interface WorkoutSession {
 }
 
 export interface UserData {
+  id: string;
+  email: string;
   username: string;
   avatar: string;
   age: number;
@@ -276,21 +278,21 @@ export const WEEKLY_PROGRAMS = [
   {
     id: 'beginner-3',
     name: 'Program Pemula (3 hari)',
-    days: [1, 3, 5], // Senin, Rabu, Jumat
+    days: [1, 3, 5],
     exercisesPerDay: 4,
     description: 'Cocok untuk anak yang baru mulai berolahraga',
   },
   {
     id: 'active-4',
     name: 'Program Aktif (4 hari)',
-    days: [1, 2, 4, 5], // Senin, Selasa, Kamis, Jumat
+    days: [1, 2, 4, 5],
     exercisesPerDay: 5,
     description: 'Untuk anak yang sudah aktif bergerak',
   },
   {
     id: 'champion-5',
     name: 'Program Juara (5 hari)',
-    days: [1, 2, 3, 4, 5], // Senin - Jumat
+    days: [1, 2, 3, 4, 5],
     exercisesPerDay: 6,
     description: 'Tantangan untuk anak yang sangat aktif!',
   },

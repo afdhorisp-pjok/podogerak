@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { UserData, getExerciseById, DAY_NAMES } from '@/lib/workoutData';
-import { getRecentWorkouts } from '@/lib/storage';
+import { UserData, DAY_NAMES } from '@/lib/workoutData';
 import { Clock, Calendar } from 'lucide-react';
 
 interface HistorySectionProps {
@@ -9,7 +8,8 @@ interface HistorySectionProps {
 }
 
 export const HistorySection = ({ user }: HistorySectionProps) => {
-  const recentWorkouts = getRecentWorkouts(user, 7);
+  // Use workoutHistory from user data (now loaded from database)
+  const recentWorkouts = user.workoutHistory.slice(0, 7);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -24,12 +24,8 @@ export const HistorySection = ({ user }: HistorySectionProps) => {
       <Card className="border-2 border-dashed">
         <CardContent className="p-8 text-center">
           <div className="text-4xl mb-4">📝</div>
-          <h3 className="text-lg font-bold text-foreground mb-2">
-            Belum Ada Riwayat
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Mulai latihan pertamamu untuk melihat riwayat di sini!
-          </p>
+          <h3 className="text-lg font-bold text-foreground mb-2">Belum Ada Riwayat</h3>
+          <p className="text-sm text-muted-foreground">Mulai latihan pertamamu untuk melihat riwayat di sini!</p>
         </CardContent>
       </Card>
     );
@@ -57,12 +53,8 @@ export const HistorySection = ({ user }: HistorySectionProps) => {
                     {workout.completed ? '✅' : '⏸️'}
                   </div>
                   <div>
-                    <div className="font-semibold text-foreground text-sm">
-                      {formatDate(workout.date)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {workout.exercises.length} gerakan
-                    </div>
+                    <div className="font-semibold text-foreground text-sm">{formatDate(workout.date)}</div>
+                    <div className="text-xs text-muted-foreground">{workout.exercises.length} gerakan</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 text-sm text-muted-foreground">
