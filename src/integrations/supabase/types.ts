@@ -14,7 +14,118 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      user_progress: {
+        Row: {
+          activity_name: string
+          category: string
+          created_at: string
+          date: string
+          id: string
+          notes: string | null
+          score: number | null
+          user_id: string
+          username: string
+        }
+        Insert: {
+          activity_name: string
+          category: string
+          created_at?: string
+          date: string
+          id?: string
+          notes?: string | null
+          score?: number | null
+          user_id: string
+          username: string
+        }
+        Update: {
+          activity_name?: string
+          category?: string
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          score?: number | null
+          user_id?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users_profile: {
+        Row: {
+          age: number | null
+          avatar: string | null
+          created_at: string
+          email: string | null
+          id: string
+          username: string
+          weekly_schedule: number[] | null
+        }
+        Insert: {
+          age?: number | null
+          avatar?: string | null
+          created_at?: string
+          email?: string | null
+          id: string
+          username: string
+          weekly_schedule?: number[] | null
+        }
+        Update: {
+          age?: number | null
+          avatar?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          username?: string
+          weekly_schedule?: number[] | null
+        }
+        Relationships: []
+      }
+      workout_sessions: {
+        Row: {
+          completed: boolean | null
+          created_at: string
+          date: string
+          duration: number | null
+          exercises: string[] | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean | null
+          created_at?: string
+          date: string
+          duration?: number | null
+          exercises?: string[] | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean | null
+          created_at?: string
+          date?: string
+          duration?: number | null
+          exercises?: string[] | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

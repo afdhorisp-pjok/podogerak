@@ -2,22 +2,73 @@ import { useState, useEffect } from 'react';
 import { LoginForm } from '@/components/LoginForm';
 import { Dashboard } from '@/components/Dashboard';
 import { UserData } from '@/lib/workoutData';
-import { getUser, saveUser } from '@/lib/storage';
+import { supabase } from '@/integrations/supabase/client';
+import { getUserProfile } from '@/lib/authService';
+import { getWorkoutHistory, calculateStreak } from '@/lib/progressService';
 
 const Index = () => {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const loadUserData = async (userId: string) => {
+    const profile = await getUserProfile(userId);
+    if (!profile) return null;
+
+    const history = await getWorkoutHistory(userId);
+    const streak = calculateStreak(history);
+    const lastDate = history.length > 0 ? history[0].date : '';
+
+    const userData: UserData = {
+      id: profile.id,
+      email: profile.email,
+      username: profile.username,
+      avatar: profile.avatar,
+      age: profile.age,
+      totalSessions: history.length,
+      streakDays: streak,
+      lastActiveDate: lastDate,
+      workoutHistory: history,
+      weeklySchedule: profile.weekly_schedule,
+    };
+    return userData;
+  };
+
   useEffect(() => {
-    const savedUser = getUser();
-    if (savedUser) {
-      setUser(savedUser);
-    }
-    setIsLoading(false);
+    // Set up auth listener BEFORE checking session
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          // Use setTimeout to avoid Supabase auth deadlock
+          setTimeout(async () => {
+            const userData = await loadUserData(session.user.id);
+            setUser(userData);
+            setIsLoading(false);
+          }, 0);
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setIsLoading(false);
+        }
+      }
+    );
+
+    // Check existing session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const userData = await loadUserData(session.user.id);
+        setUser(userData);
+      }
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const handleLogin = (newUser: UserData) => {
-    setUser(newUser);
+  const handleLogin = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const userData = await loadUserData(session.user.id);
+      setUser(userData);
+    }
   };
 
   const handleLogout = () => {
@@ -26,7 +77,6 @@ const Index = () => {
 
   const handleUserUpdate = (updatedUser: UserData) => {
     setUser(updatedUser);
-    saveUser(updatedUser);
   };
 
   if (isLoading) {

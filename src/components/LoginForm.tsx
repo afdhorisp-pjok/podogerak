@@ -4,23 +4,55 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AvatarSelector } from './AvatarSelector';
-import { createUser } from '@/lib/storage';
-import { UserData } from '@/lib/workoutData';
+import { signUp, signIn } from '@/lib/authService';
 
 interface LoginFormProps {
-  onLogin: (user: UserData) => void;
+  onLogin: () => void;
 }
 
 export const LoginForm = ({ onLogin }: LoginFormProps) => {
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [avatar, setAvatar] = useState('astronaut');
   const [age, setAge] = useState('');
   const [step, setStep] = useState(1);
+  const [mode, setMode] = useState<'register' | 'login'>('register');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
-  const handleSubmit = () => {
-    if (!username.trim() || !age) return;
-    const user = createUser(username.trim(), avatar, parseInt(age));
-    onLogin(user);
+  const handleRegister = async () => {
+    if (!username.trim() || !email || !password || !age) return;
+    setIsSubmitting(true);
+    setError('');
+
+    const { error: err } = await signUp(email, password, username.trim(), avatar, parseInt(age));
+    setIsSubmitting(false);
+
+    if (err) {
+      setError(err);
+      return;
+    }
+
+    setSuccessMessage('Akun berhasil dibuat! Silakan cek email untuk verifikasi, lalu masuk.');
+    setMode('login');
+  };
+
+  const handleLogin = async () => {
+    if (!email || !password) return;
+    setIsSubmitting(true);
+    setError('');
+
+    const { error: err } = await signIn(email, password);
+    setIsSubmitting(false);
+
+    if (err) {
+      setError(err);
+      return;
+    }
+
+    onLogin();
   };
 
   return (
@@ -40,21 +72,78 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
         <Card className="animate-scale-in shadow-card border-0">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">
-              {step === 1 ? 'Siapa nama jagoan kita?' : 'Pilih avatarmu!'}
+              {mode === 'login'
+                ? 'Masuk'
+                : step === 1
+                ? 'Siapa nama jagoan kita?'
+                : 'Pilih avatarmu!'}
             </CardTitle>
             <CardDescription>
-              {step === 1 
-                ? 'Masukkan nama dan usia anak' 
+              {mode === 'login'
+                ? 'Masuk dengan email dan password'
+                : step === 1
+                ? 'Masukkan data untuk mendaftar'
                 : 'Pilih karakter favoritmu untuk petualangan olahraga!'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {step === 1 ? (
+            {successMessage && (
+              <div className="p-3 rounded-lg bg-primary/10 text-primary text-sm">
+                {successMessage}
+              </div>
+            )}
+            {error && (
+              <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                {error}
+              </div>
+            )}
+
+            {mode === 'login' ? (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-base font-semibold">
-                    Nama Anak
-                  </Label>
+                  <Label htmlFor="email" className="text-base font-semibold">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="contoh@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-14 text-lg rounded-xl border-2 focus:border-primary"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-base font-semibold">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Masukkan password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-14 text-lg rounded-xl border-2 focus:border-primary"
+                  />
+                </div>
+                <Button
+                  onClick={handleLogin}
+                  disabled={!email || !password || isSubmitting}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isSubmitting ? 'Memproses...' : 'Masuk 🚀'}
+                </Button>
+                <p className="text-center text-sm text-muted-foreground">
+                  Belum punya akun?{' '}
+                  <button
+                    onClick={() => { setMode('register'); setError(''); setSuccessMessage(''); }}
+                    className="text-primary font-semibold hover:underline"
+                  >
+                    Daftar di sini
+                  </button>
+                </p>
+              </>
+            ) : step === 1 ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="username" className="text-base font-semibold">Nama Anak</Label>
                   <Input
                     id="username"
                     placeholder="Contoh: Budi"
@@ -64,9 +153,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="age" className="text-base font-semibold">
-                    Usia (tahun)
-                  </Label>
+                  <Label htmlFor="age" className="text-base font-semibold">Usia (tahun)</Label>
                   <Input
                     id="age"
                     type="number"
@@ -78,14 +165,45 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                     className="h-14 text-lg rounded-xl border-2 focus:border-primary"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-email" className="text-base font-semibold">Email</Label>
+                  <Input
+                    id="reg-email"
+                    type="email"
+                    placeholder="contoh@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-14 text-lg rounded-xl border-2 focus:border-primary"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-password" className="text-base font-semibold">Password</Label>
+                  <Input
+                    id="reg-password"
+                    type="password"
+                    placeholder="Minimal 6 karakter"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-14 text-lg rounded-xl border-2 focus:border-primary"
+                  />
+                </div>
                 <Button
                   onClick={() => setStep(2)}
-                  disabled={!username.trim() || !age}
+                  disabled={!username.trim() || !age || !email || !password}
                   className="w-full"
                   size="lg"
                 >
                   Lanjut Pilih Avatar →
                 </Button>
+                <p className="text-center text-sm text-muted-foreground">
+                  Sudah punya akun?{' '}
+                  <button
+                    onClick={() => { setMode('login'); setError(''); setSuccessMessage(''); }}
+                    className="text-primary font-semibold hover:underline"
+                  >
+                    Masuk di sini
+                  </button>
+                </p>
               </>
             ) : (
               <>
@@ -100,11 +218,12 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                     ← Kembali
                   </Button>
                   <Button
-                    onClick={handleSubmit}
+                    onClick={handleRegister}
+                    disabled={isSubmitting}
                     className="flex-1"
                     size="lg"
                   >
-                    Mulai! 🎉
+                    {isSubmitting ? 'Mendaftar...' : 'Daftar! 🎉'}
                   </Button>
                 </div>
               </>

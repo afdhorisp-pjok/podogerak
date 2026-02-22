@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { UserData, ExerciseCategory, AVATARS } from '@/lib/workoutData';
-import { logoutUser } from '@/lib/storage';
+import { signOut } from '@/lib/authService';
+import { saveWorkoutSession, getWorkoutHistory, calculateStreak, saveProgressEntry } from '@/lib/progressService';
 import { getEarnedBadges, getNewlyEarnedBadges, Badge } from '@/lib/badgeData';
 import { StatsCard } from './StatsCard';
 import { CategoryCard } from './CategoryCard';
@@ -44,16 +45,44 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
     }
   }, [user.totalSessions, user.streakDays, user.workoutHistory.length]);
 
-  const handleLogout = () => {
-    logoutUser();
+  const handleLogout = async () => {
+    await signOut();
     onLogout();
   };
 
-  const handleWorkoutComplete = () => {
-    setActiveWorkout(null);
-    // Refresh user data
-    const updatedUser = { ...user, totalSessions: user.totalSessions + 1 };
-    onUserUpdate(updatedUser);
+  const handleWorkoutComplete = async (exercises: string[], duration: number, category: string) => {
+    const session = {
+      date: new Date().toISOString().split('T')[0],
+      exercises,
+      duration,
+      completed: true,
+    };
+
+    await saveWorkoutSession(user.id, session);
+
+    // Save to user_progress for research
+    for (const exerciseId of exercises) {
+      await saveProgressEntry({
+        user_id: user.id,
+        username: user.username,
+        date: session.date,
+        category,
+        activity_name: exerciseId,
+        score: 1,
+        notes: `Durasi: ${duration} menit`,
+      });
+    }
+
+    // Reload workout history
+    const history = await getWorkoutHistory(user.id);
+    const streak = calculateStreak(history);
+    onUserUpdate({
+      ...user,
+      totalSessions: history.length,
+      streakDays: streak,
+      workoutHistory: history,
+      lastActiveDate: session.date,
+    });
   };
 
   if (showEducation) {
@@ -106,53 +135,23 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
             Progressmu 📊
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <StatsCard
-              icon="🔥"
-              value={user.streakDays}
-              label="Hari Berturut"
-              variant="primary"
-              delay={0}
-            />
-            <StatsCard
-              icon="🎯"
-              value={user.totalSessions}
-              label="Total Sesi"
-              variant="secondary"
-              delay={100}
-            />
-            <StatsCard
-              icon="⭐"
-              value={`${user.age} thn`}
-              label="Usia Jagoan"
-              variant="accent"
-              delay={200}
-            />
+            <StatsCard icon="🔥" value={user.streakDays} label="Hari Berturut" variant="primary" delay={0} />
+            <StatsCard icon="🎯" value={user.totalSessions} label="Total Sesi" variant="secondary" delay={100} />
+            <StatsCard icon="⭐" value={`${user.age} thn`} label="Usia Jagoan" variant="accent" delay={200} />
           </div>
         </section>
 
         {/* Quick Actions */}
         <section className="grid grid-cols-3 gap-3">
-          <Button
-            variant="outline"
-            onClick={() => setShowParentGuide(true)}
-            className="flex-col h-auto py-3 gap-1"
-          >
+          <Button variant="outline" onClick={() => setShowParentGuide(true)} className="flex-col h-auto py-3 gap-1">
             <Users className="w-5 h-5" />
             <span className="text-xs">Panduan</span>
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => setShowEducation(true)}
-            className="flex-col h-auto py-3 gap-1"
-          >
+          <Button variant="outline" onClick={() => setShowEducation(true)} className="flex-col h-auto py-3 gap-1">
             <BookOpen className="w-5 h-5" />
             <span className="text-xs">Edukasi</span>
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => setShowProgressReport(true)}
-            className="flex-col h-auto py-3 gap-1"
-          >
+          <Button variant="outline" onClick={() => setShowProgressReport(true)} className="flex-col h-auto py-3 gap-1">
             <BarChart3 className="w-5 h-5" />
             <span className="text-xs">Laporan</span>
           </Button>
@@ -160,25 +159,11 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
 
         {/* Workout Categories */}
         <section>
-          <h2 className="text-lg font-fredoka font-bold text-foreground mb-4">
-            Pilih Latihan 💪
-          </h2>
+          <h2 className="text-lg font-fredoka font-bold text-foreground mb-4">Pilih Latihan 💪</h2>
           <div className="grid md:grid-cols-3 gap-4">
-            <CategoryCard
-              category="locomotor"
-              onStart={setActiveWorkout}
-              delay={0}
-            />
-            <CategoryCard
-              category="non-locomotor"
-              onStart={setActiveWorkout}
-              delay={100}
-            />
-            <CategoryCard
-              category="manipulative"
-              onStart={setActiveWorkout}
-              delay={200}
-            />
+            <CategoryCard category="locomotor" onStart={setActiveWorkout} delay={0} />
+            <CategoryCard category="non-locomotor" onStart={setActiveWorkout} delay={100} />
+            <CategoryCard category="manipulative" onStart={setActiveWorkout} delay={200} />
           </div>
         </section>
 
@@ -193,27 +178,13 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
 
         {/* Footer */}
         <footer className="text-center py-6 border-t">
-          <p className="text-sm text-muted-foreground">
-            PodoGerak - Dibuat oleh Afdhoris Pradana Putra
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Aplikasi Latihan Motorik Kasar untuk Anak
-          </p>
+          <p className="text-sm text-muted-foreground">PodoGerak - Dibuat oleh Afdhoris Pradana Putra</p>
+          <p className="text-xs text-muted-foreground mt-1">Aplikasi Latihan Motorik Kasar untuk Anak</p>
         </footer>
       </main>
 
-      {/* Parent Guide Modal */}
-      <ParentGuideModal
-        open={showParentGuide}
-        onClose={() => setShowParentGuide(false)}
-      />
-
-      {/* New Badge Modal */}
-      <NewBadgeModal
-        badges={newBadges}
-        open={showNewBadgeModal}
-        onClose={() => setShowNewBadgeModal(false)}
-      />
+      <ParentGuideModal open={showParentGuide} onClose={() => setShowParentGuide(false)} />
+      <NewBadgeModal badges={newBadges} open={showNewBadgeModal} onClose={() => setShowNewBadgeModal(false)} />
     </div>
   );
 };
