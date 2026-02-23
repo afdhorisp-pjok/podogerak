@@ -1,5 +1,5 @@
-import { UserData, WorkoutSession, getCategoryLabel } from './workoutData';
-import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval, subMonths } from 'date-fns';
+import { UserData, ExerciseDomain, EXERCISES, getExerciseById } from './workoutData';
+import { format, subDays, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import { id } from 'date-fns/locale';
 
 export interface DailyProgress {
@@ -15,8 +15,10 @@ export interface WeeklyProgress {
   sessions: number;
   duration: number;
   locomotor: number;
-  nonLocomotor: number;
-  manipulative: number;
+  jumping: number;
+  balance: number;
+  ballSkills: number;
+  combined: number;
 }
 
 export interface CategoryStats {
@@ -25,7 +27,19 @@ export interface CategoryStats {
   fill: string;
 }
 
-// Get daily progress for the last N days
+const DOMAIN_COLORS: Record<ExerciseDomain, string> = {
+  locomotor: 'hsl(var(--primary))',
+  jumping: 'hsl(var(--jumping))',
+  balance: 'hsl(var(--balance))',
+  ball_skills: 'hsl(var(--ball-skills))',
+  combined: 'hsl(var(--combined))',
+};
+
+function getExerciseDomain(exerciseId: string): ExerciseDomain | null {
+  const ex = getExerciseById(exerciseId);
+  return ex ? ex.domain : null;
+}
+
 export const getDailyProgress = (user: UserData, days: number = 7): DailyProgress[] => {
   const today = new Date();
   const result: DailyProgress[] = [];
@@ -49,7 +63,6 @@ export const getDailyProgress = (user: UserData, days: number = 7): DailyProgres
   return result;
 };
 
-// Get weekly progress for the last N weeks
 export const getWeeklyProgress = (user: UserData, weeks: number = 4): WeeklyProgress[] => {
   const today = new Date();
   const result: WeeklyProgress[] = [];
@@ -66,20 +79,16 @@ export const getWeeklyProgress = (user: UserData, weeks: number = 4): WeeklyProg
 
     const totalDuration = weekSessions.reduce((sum, s) => sum + s.duration, 0);
 
-    // Count exercises by category
-    let locomotor = 0;
-    let nonLocomotor = 0;
-    let manipulative = 0;
+    let locomotor = 0, jumping = 0, balance = 0, ballSkills = 0, combined = 0;
 
     weekSessions.forEach(session => {
       session.exercises.forEach(exerciseId => {
-        if (['lari-kecil', 'lompat-katak', 'lompat-satu-kaki', 'skipping', 'jalan-zigzag', 'galloping', 'side-step'].includes(exerciseId)) {
-          locomotor++;
-        } else if (['membungkuk', 'memutar-badan', 'keseimbangan-satu-kaki', 'stretching-kupu', 'twist', 'reach-up'].includes(exerciseId)) {
-          nonLocomotor++;
-        } else if (['lempar-tangkap', 'dorong-bola', 'gulir-bola', 'pukul-balon', 'lempar-sasaran'].includes(exerciseId)) {
-          manipulative++;
-        }
+        const domain = getExerciseDomain(exerciseId);
+        if (domain === 'locomotor') locomotor++;
+        else if (domain === 'jumping') jumping++;
+        else if (domain === 'balance') balance++;
+        else if (domain === 'ball_skills') ballSkills++;
+        else if (domain === 'combined') combined++;
       });
     });
 
@@ -89,43 +98,41 @@ export const getWeeklyProgress = (user: UserData, weeks: number = 4): WeeklyProg
       sessions: weekSessions.length,
       duration: totalDuration,
       locomotor,
-      nonLocomotor,
-      manipulative,
+      jumping,
+      balance,
+      ballSkills,
+      combined,
     });
   }
 
   return result;
 };
 
-// Get category distribution
 export const getCategoryDistribution = (user: UserData): CategoryStats[] => {
-  let locomotor = 0;
-  let nonLocomotor = 0;
-  let manipulative = 0;
+  let locomotor = 0, jumping = 0, balance = 0, ballSkills = 0, combined = 0;
 
   user.workoutHistory.forEach(session => {
     session.exercises.forEach(exerciseId => {
-      if (['lari-kecil', 'lompat-katak', 'lompat-satu-kaki', 'skipping', 'jalan-zigzag', 'galloping', 'side-step'].includes(exerciseId)) {
-        locomotor++;
-      } else if (['membungkuk', 'memutar-badan', 'keseimbangan-satu-kaki', 'stretching-kupu', 'twist', 'reach-up'].includes(exerciseId)) {
-        nonLocomotor++;
-      } else if (['lempar-tangkap', 'dorong-bola', 'gulir-bola', 'pukul-balon', 'lempar-sasaran'].includes(exerciseId)) {
-        manipulative++;
-      }
+      const domain = getExerciseDomain(exerciseId);
+      if (domain === 'locomotor') locomotor++;
+      else if (domain === 'jumping') jumping++;
+      else if (domain === 'balance') balance++;
+      else if (domain === 'ball_skills') ballSkills++;
+      else if (domain === 'combined') combined++;
     });
   });
 
   return [
-    { name: 'Lokomotor', value: locomotor, fill: 'hsl(var(--primary))' },
-    { name: 'Non-Lokomotor', value: nonLocomotor, fill: 'hsl(var(--secondary))' },
-    { name: 'Manipulatif', value: manipulative, fill: 'hsl(var(--accent))' },
+    { name: 'Lokomotor', value: locomotor, fill: DOMAIN_COLORS.locomotor },
+    { name: 'Lompat & Hop', value: jumping, fill: DOMAIN_COLORS.jumping },
+    { name: 'Keseimbangan', value: balance, fill: DOMAIN_COLORS.balance },
+    { name: 'Bola', value: ballSkills, fill: DOMAIN_COLORS.ball_skills },
+    { name: 'Gabungan', value: combined, fill: DOMAIN_COLORS.combined },
   ].filter(c => c.value > 0);
 };
 
-// Get streak history
-export const getStreakHistory = (user: UserData): { maxStreak: number; currentStreak: number; activeDays: number } => {
+export const getStreakHistory = (user: UserData) => {
   const activeDays = new Set(user.workoutHistory.map(s => s.date)).size;
-  
   return {
     maxStreak: Math.max(user.streakDays, activeDays > 0 ? 1 : 0),
     currentStreak: user.streakDays,
@@ -133,7 +140,6 @@ export const getStreakHistory = (user: UserData): { maxStreak: number; currentSt
   };
 };
 
-// Get summary stats
 export const getSummaryStats = (user: UserData) => {
   const totalDuration = user.workoutHistory.reduce((sum, s) => sum + s.duration, 0);
   const totalExercises = user.workoutHistory.reduce((sum, s) => sum + s.exercises.length, 0);
@@ -146,4 +152,23 @@ export const getSummaryStats = (user: UserData) => {
     avgDuration,
     streakDays: user.streakDays,
   };
+};
+
+export const getDomainExposure = (user: UserData): Record<ExerciseDomain, number> => {
+  const exposure: Record<ExerciseDomain, number> = {
+    locomotor: 0,
+    jumping: 0,
+    balance: 0,
+    ball_skills: 0,
+    combined: 0,
+  };
+
+  user.workoutHistory.forEach(session => {
+    session.exercises.forEach(exerciseId => {
+      const domain = getExerciseDomain(exerciseId);
+      if (domain) exposure[domain]++;
+    });
+  });
+
+  return exposure;
 };

@@ -1,13 +1,30 @@
-import { UserData } from './workoutData';
+import { UserData, ExerciseDomain, getExerciseById } from './workoutData';
 
 export interface Badge {
   id: string;
   name: string;
   description: string;
   emoji: string;
-  category: 'session' | 'streak' | 'category' | 'special';
+  category: 'session' | 'streak' | 'domain' | 'special';
   requirement: (user: UserData) => boolean;
   progress: (user: UserData) => { current: number; target: number };
+}
+
+function hasTriedDomain(user: UserData, domain: ExerciseDomain): boolean {
+  return user.workoutHistory.some(session =>
+    session.exercises.some(exerciseId => {
+      const ex = getExerciseById(exerciseId);
+      return ex?.domain === domain;
+    })
+  );
+}
+
+function hasEarlyMorningWorkout(user: UserData): boolean {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const today = now.toISOString().split('T')[0];
+  const hasTodayWorkout = user.workoutHistory.some(s => s.date === today);
+  return hasTodayWorkout && currentHour < 9;
 }
 
 export const BADGES: Badge[] = [
@@ -15,7 +32,7 @@ export const BADGES: Badge[] = [
   {
     id: 'first-step',
     name: 'Langkah Pertama',
-    description: 'Menyelesaikan latihan pertamamu!',
+    description: 'Menyelesaikan sesi pertama!',
     emoji: '🌟',
     category: 'session',
     requirement: (user) => user.totalSessions >= 1,
@@ -24,7 +41,7 @@ export const BADGES: Badge[] = [
   {
     id: 'active-kid',
     name: 'Anak Aktif',
-    description: 'Menyelesaikan 5 sesi latihan',
+    description: 'Menyelesaikan 5 sesi',
     emoji: '🏃',
     category: 'session',
     requirement: (user) => user.totalSessions >= 5,
@@ -32,8 +49,8 @@ export const BADGES: Badge[] = [
   },
   {
     id: 'super-athlete',
-    name: 'Atlet Super',
-    description: 'Menyelesaikan 10 sesi latihan',
+    name: 'Jagoan Motorik',
+    description: 'Menyelesaikan 10 sesi',
     emoji: '🦸',
     category: 'session',
     requirement: (user) => user.totalSessions >= 10,
@@ -42,27 +59,18 @@ export const BADGES: Badge[] = [
   {
     id: 'workout-master',
     name: 'Master Latihan',
-    description: 'Menyelesaikan 25 sesi latihan',
+    description: 'Menyelesaikan 25 sesi',
     emoji: '👑',
     category: 'session',
     requirement: (user) => user.totalSessions >= 25,
     progress: (user) => ({ current: Math.min(user.totalSessions, 25), target: 25 }),
-  },
-  {
-    id: 'legend',
-    name: 'Legenda PodoGerak',
-    description: 'Menyelesaikan 50 sesi latihan',
-    emoji: '🏆',
-    category: 'session',
-    requirement: (user) => user.totalSessions >= 50,
-    progress: (user) => ({ current: Math.min(user.totalSessions, 50), target: 50 }),
   },
 
   // Streak badges
   {
     id: 'consistent-3',
     name: 'Konsisten',
-    description: '3 hari berturut-turut berolahraga',
+    description: '3 hari berturut-turut',
     emoji: '🔥',
     category: 'streak',
     requirement: (user) => user.streakDays >= 3,
@@ -71,7 +79,7 @@ export const BADGES: Badge[] = [
   {
     id: 'week-warrior',
     name: 'Pejuang Mingguan',
-    description: '7 hari berturut-turut berolahraga',
+    description: '7 hari berturut-turut',
     emoji: '⚡',
     category: 'streak',
     requirement: (user) => user.streakDays >= 7,
@@ -80,67 +88,69 @@ export const BADGES: Badge[] = [
   {
     id: 'streak-champion',
     name: 'Juara Streak',
-    description: '14 hari berturut-turut berolahraga',
+    description: '14 hari berturut-turut',
     emoji: '💎',
     category: 'streak',
     requirement: (user) => user.streakDays >= 14,
     progress: (user) => ({ current: Math.min(user.streakDays, 14), target: 14 }),
   },
-  {
-    id: 'unstoppable',
-    name: 'Tak Terhentikan',
-    description: '30 hari berturut-turut berolahraga',
-    emoji: '🚀',
-    category: 'streak',
-    requirement: (user) => user.streakDays >= 30,
-    progress: (user) => ({ current: Math.min(user.streakDays, 30), target: 30 }),
-  },
 
-  // Category badges
+  // Domain badges
   {
     id: 'locomotor-explorer',
     name: 'Penjelajah Lokomotor',
     description: 'Mencoba latihan Lokomotor',
+    emoji: '🏃',
+    category: 'domain',
+    requirement: (user) => hasTriedDomain(user, 'locomotor'),
+    progress: (user) => ({ current: hasTriedDomain(user, 'locomotor') ? 1 : 0, target: 1 }),
+  },
+  {
+    id: 'jumper',
+    name: 'Si Pelompat',
+    description: 'Mencoba latihan Lompat & Hop',
     emoji: '🐸',
-    category: 'category',
-    requirement: (user) => hasTriedCategory(user, 'locomotor'),
-    progress: (user) => ({ current: hasTriedCategory(user, 'locomotor') ? 1 : 0, target: 1 }),
+    category: 'domain',
+    requirement: (user) => hasTriedDomain(user, 'jumping'),
+    progress: (user) => ({ current: hasTriedDomain(user, 'jumping') ? 1 : 0, target: 1 }),
   },
   {
     id: 'balance-master',
     name: 'Master Keseimbangan',
-    description: 'Mencoba latihan Non-Lokomotor',
-    emoji: '🦢',
-    category: 'category',
-    requirement: (user) => hasTriedCategory(user, 'non-locomotor'),
-    progress: (user) => ({ current: hasTriedCategory(user, 'non-locomotor') ? 1 : 0, target: 1 }),
+    description: 'Mencoba latihan Keseimbangan',
+    emoji: '🧘',
+    category: 'domain',
+    requirement: (user) => hasTriedDomain(user, 'balance'),
+    progress: (user) => ({ current: hasTriedDomain(user, 'balance') ? 1 : 0, target: 1 }),
   },
   {
     id: 'ball-handler',
     name: 'Jagoan Bola',
-    description: 'Mencoba latihan Manipulatif',
-    emoji: '🎾',
-    category: 'category',
-    requirement: (user) => hasTriedCategory(user, 'manipulative'),
-    progress: (user) => ({ current: hasTriedCategory(user, 'manipulative') ? 1 : 0, target: 1 }),
+    description: 'Mencoba latihan Keterampilan Bola',
+    emoji: '⚽',
+    category: 'domain',
+    requirement: (user) => hasTriedDomain(user, 'ball_skills'),
+    progress: (user) => ({ current: hasTriedDomain(user, 'ball_skills') ? 1 : 0, target: 1 }),
   },
   {
     id: 'all-rounder',
     name: 'Serba Bisa',
-    description: 'Mencoba semua kategori latihan',
+    description: 'Mencoba semua domain latihan',
     emoji: '🌈',
-    category: 'category',
-    requirement: (user) => 
-      hasTriedCategory(user, 'locomotor') && 
-      hasTriedCategory(user, 'non-locomotor') && 
-      hasTriedCategory(user, 'manipulative'),
+    category: 'domain',
+    requirement: (user) =>
+      hasTriedDomain(user, 'locomotor') &&
+      hasTriedDomain(user, 'jumping') &&
+      hasTriedDomain(user, 'balance') &&
+      hasTriedDomain(user, 'ball_skills'),
     progress: (user) => ({
       current: [
-        hasTriedCategory(user, 'locomotor'),
-        hasTriedCategory(user, 'non-locomotor'),
-        hasTriedCategory(user, 'manipulative'),
+        hasTriedDomain(user, 'locomotor'),
+        hasTriedDomain(user, 'jumping'),
+        hasTriedDomain(user, 'balance'),
+        hasTriedDomain(user, 'ball_skills'),
       ].filter(Boolean).length,
-      target: 3,
+      target: 4,
     }),
   },
 
@@ -148,44 +158,22 @@ export const BADGES: Badge[] = [
   {
     id: 'early-bird',
     name: 'Rajin Pagi',
-    description: 'Latihan di pagi hari (sebelum jam 9)',
+    description: 'Latihan sebelum jam 9 pagi',
     emoji: '🌅',
     category: 'special',
     requirement: (user) => hasEarlyMorningWorkout(user),
     progress: (user) => ({ current: hasEarlyMorningWorkout(user) ? 1 : 0, target: 1 }),
   },
+  {
+    id: 'curriculum-complete',
+    name: 'Lulus Kurikulum',
+    description: 'Menyelesaikan minggu ke-8',
+    emoji: '🎓',
+    category: 'special',
+    requirement: (user) => user.currentWeek > 8 || (user.currentWeek === 8 && user.totalSessions >= 24),
+    progress: (user) => ({ current: Math.min(user.currentWeek, 8), target: 8 }),
+  },
 ];
-
-// Helper functions
-function hasTriedCategory(user: UserData, category: string): boolean {
-  return user.workoutHistory.some(session => 
-    session.exercises.some(exerciseId => {
-      // Check if exercise belongs to category based on naming convention
-      if (category === 'locomotor') {
-        return ['lari-kecil', 'lompat-katak', 'lompat-satu-kaki', 'skipping', 'jalan-zigzag', 'galloping', 'side-step'].includes(exerciseId);
-      }
-      if (category === 'non-locomotor') {
-        return ['membungkuk', 'memutar-badan', 'keseimbangan-satu-kaki', 'stretching-kupu', 'twist', 'reach-up'].includes(exerciseId);
-      }
-      if (category === 'manipulative') {
-        return ['lempar-tangkap', 'dorong-bola', 'gulir-bola', 'pukul-balon', 'lempar-sasaran'].includes(exerciseId);
-      }
-      return false;
-    })
-  );
-}
-
-function hasEarlyMorningWorkout(user: UserData): boolean {
-  // Check if any workout was done before 9 AM
-  // Since we only store date, we'll check based on current session time
-  const now = new Date();
-  const currentHour = now.getHours();
-  const today = now.toISOString().split('T')[0];
-  
-  // If user has a workout today and it's currently before 9 AM, they get the badge
-  const hasTodayWorkout = user.workoutHistory.some(s => s.date === today);
-  return hasTodayWorkout && currentHour < 9;
-}
 
 export const getEarnedBadges = (user: UserData): Badge[] => {
   return BADGES.filter(badge => badge.requirement(user));
@@ -207,7 +195,7 @@ export const getCategoryLabel = (category: Badge['category']): string => {
   const labels: Record<Badge['category'], string> = {
     session: 'Sesi Latihan',
     streak: 'Streak Harian',
-    category: 'Kategori',
+    domain: 'Domain Motorik',
     special: 'Spesial',
   };
   return labels[category];

@@ -65,9 +65,12 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Domain colors
         locomotor: "hsl(var(--locomotor))",
-        "non-locomotor": "hsl(var(--non-locomotor))",
-        manipulative: "hsl(280 70% 55%)",
+        jumping: "hsl(var(--jumping))",
+        balance: "hsl(var(--balance))",
+        "ball-skills": "hsl(var(--ball-skills))",
+        combined: "hsl(var(--combined))",
       },
       borderRadius: {
         lg: "var(--radius)",
