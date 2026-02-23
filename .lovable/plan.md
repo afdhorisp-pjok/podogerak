@@ -1,165 +1,287 @@
 
-
-# Migrasi PodoGerak ke Supabase: Auth + Database
+# PodoGerak: Transformasi ke Platform Intervensi Motorik Digital Berbasis Riset
 
 ## Ringkasan
 
-Migrasi sistem autentikasi dan penyimpanan data dari localStorage ke Supabase, tanpa mengubah UI, styling, atau layout yang sudah ada. Pengguna akan bisa login dari perangkat manapun dan data progress tetap tersinkronisasi.
+Transformasi total PodoGerak dari aplikasi latihan motorik kasar sederhana menjadi platform intervensi motorik digital kelas riset yang selaras dengan TGMD-3, untuk anak usia 4-7 tahun. Semua fitur yang sudah ada (auth, dashboard, progress, chart, badge) akan dipertahankan dan ditingkatkan kualitasnya.
 
-## Langkah-langkah Implementasi
+**Catatan penting:** Mengingat besarnya skala perubahan ini, implementasi akan dibagi menjadi **3 fase** yang berurutan. Setiap fase akan menghasilkan sistem yang fungsional. Rencana ini mencakup seluruh fase.
 
-### 1. Setup Koneksi Supabase
+---
 
-Aktifkan Supabase Cloud dan buat file `src/integrations/supabase/client.ts` untuk koneksi Supabase menggunakan environment variables `VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY`.
+## FASE 1: Fondasi Data dan Library Latihan TGMD-3
 
-### 2. Buat Tabel Database (Migrasi SQL)
+### 1.1 Database: Tabel Baru
 
-**Tabel `users_profile`:**
-- `id` (uuid, primary key, referensi ke `auth.users.id`)
-- `username` (text, UNIQUE, NOT NULL)
-- `email` (text)
-- `avatar` (text)
-- `age` (integer)
-- `weekly_schedule` (integer array, default `{1,3,5}`)
-- `created_at` (timestamptz)
+**Tabel `skill_assessments`** (Penilaian TGMD-3 oleh orang tua):
+- `id` (uuid, PK)
+- `user_id` (uuid, FK ke users_profile)
+- `skill_id` (text) - ID latihan yang dinilai
+- `domain` (text) - locomotor / ball_skills / combined
+- `rating` (integer) - 0-3 (not able / emerging / developing / competent)
+- `assessed_at` (timestamptz)
+- `notes` (text, nullable)
 
-**Tabel `workout_sessions`:**
-- `id` (uuid, primary key)
-- `user_id` (uuid, foreign key ke `users_profile.id`)
-- `date` (date)
-- `exercises` (text array)
-- `duration` (integer, menit)
-- `completed` (boolean)
-- `created_at` (timestamptz)
+**Kolom baru di `users_profile`**:
+- `current_week` (integer, default 1) - minggu ke-berapa dalam kurikulum 8 minggu
+- `current_level` (integer, default 1) - level progresif
+- `research_mode` (boolean, default false) - aktifkan mode riset
 
-**Tabel `user_progress`** (untuk ekspor riset):
-- `id` (uuid, primary key)
-- `user_id` (uuid, foreign key)
-- `username` (text)
-- `date` (date)
-- `category` (text)
-- `activity_name` (text)
-- `score` (numeric)
-- `notes` (text)
-- `created_at` (timestamptz)
+RLS: user hanya bisa akses data sendiri.
 
-**Trigger auto-create profile** saat user sign up + **RLS policies** agar user hanya bisa akses data mereka sendiri.
+### 1.2 Library Latihan Baru (TGMD-3 Aligned)
 
-### 3. Buat Service Files Baru
+Mengganti seluruh konten `src/lib/workoutData.ts` dengan library latihan yang disetujui. Domain berubah dari 3 kategori menjadi 5:
 
-**`src/lib/supabaseClient.ts`** - Koneksi Supabase client (jika belum ada dari Cloud setup).
+| Domain Lama | Domain Baru |
+|---|---|
+| Lokomotor | Locomotor |
+| Non-Lokomotor | Jumping & Hopping, Balance |
+| Manipulatif | Ball Skills |
+| - | Combined |
 
-**`src/lib/authService.ts`** - Fungsi-fungsi:
-- `signUp(email, password, username, avatar, age)` - Registrasi dengan pengecekan username unik
-- `signIn(email, password)` - Login
-- `signOut()` - Logout
-- `getSession()` - Ambil sesi aktif
-- `getUserProfile(userId)` - Ambil profil dari Supabase
-- `onAuthStateChange(callback)` - Listener perubahan sesi
+**34 latihan** dari daftar yang disetujui, masing-masing dengan format:
+- Exercise Name, Domain, Duration (5-15 detik), Equipment
+- Parent Instruction, Child Instruction
+- Motor Goal, Safety Note
 
-**`src/lib/progressService.ts`** - Fungsi-fungsi:
-- `saveWorkoutSession(userId, session)` - Simpan sesi latihan
-- `getWorkoutHistory(userId)` - Ambil riwayat latihan
-- `getUserStats(userId)` - Hitung total sesi, streak, dll dari database
-- `updateWeeklySchedule(userId, schedule)` - Update jadwal
-- `saveProgressEntry(entry)` - Simpan data progress untuk riset
-- `getProgressEntries(userId)` - Ambil semua data progress
+### 1.3 File Baru: `src/lib/curriculumData.ts`
 
-### 4. Modifikasi File yang Ada
+Kurikulum 8 minggu terstruktur:
+- Minggu 1-2: Fundamental (latihan dasar per domain)
+- Minggu 3-4: Development (kombinasi sederhana)
+- Minggu 5-6: Integration (cross-domain)
+- Minggu 7-8: Mastery (latihan gabungan)
 
-**`src/components/LoginForm.tsx`** - Ubah form:
-- Tambah field email dan password
-- Tambah mode "Daftar" dan "Masuk" (toggle)
-- Validasi username unik via Supabase query sebelum registrasi
-- Tampilkan error "Username sudah digunakan" jika duplikat
-- Panggil `authService.signUp()` atau `authService.signIn()`
-- Tetap gunakan AvatarSelector dan UI yang sama
+Progresi hanya meningkatkan:
+- Kompleksitas koordinasi
+- Durasi keseimbangan
+- Integrasi lokomotor + ball skills
 
-**`src/pages/Index.tsx`** - Ubah logika:
-- Ganti `getUser()` localStorage dengan `supabase.auth.getSession()` dan `onAuthStateChange`
-- Load `UserData` dari Supabase (profil + workout history) setelah auth berhasil
-- Hapus dependensi ke `getUser`/`saveUser` dari localStorage
+TIDAK meningkatkan beban fisik atau intensitas.
 
-**`src/components/Dashboard.tsx`** - Ubah:
-- `handleLogout` panggil `authService.signOut()` bukan `logoutUser()`
-- `handleWorkoutComplete` simpan ke Supabase via `progressService`
+---
 
-**`src/components/WorkoutTimer.tsx`** - Ubah:
-- `handleComplete` simpan sesi ke Supabase bukan localStorage
-- Juga simpan ke tabel `user_progress` untuk riset
+## FASE 2: Sistem Sesi, Penilaian, dan Coaching
 
-**`src/components/ScheduleSection.tsx`** - Ubah:
-- `saveSchedule` update ke Supabase bukan localStorage
+### 2.1 Sesi Latihan Baru
 
-**`src/components/HistorySection.tsx`** - Ubah:
-- Data riwayat berasal dari UserData yang sudah di-load dari Supabase
+Struktur sesi baru (mengganti WorkoutTimer):
+- Tepat 4 latihan per sesi
+- Total durasi maksimal 3 menit
+- Flow: Start -> Exercise 1 -> Complete -> Exercise 2 -> Complete -> Exercise 3 -> Complete -> Exercise 4 -> Complete -> Session Complete -> Progress Updated
+- Instruksi orang tua ditampilkan sebelum setiap latihan
+- Instruksi anak ditampilkan selama latihan (playful, sangat sederhana)
+- Safety note ditampilkan
 
-**`src/lib/storage.ts`** - Refaktor:
-- Pertahankan fungsi utilitas yang dibutuhkan (kalkulasi streak, dll)
-- Hapus fungsi localStorage yang sudah digantikan Supabase
-- Fungsi `updateStreak` diadaptasi untuk bekerja dengan data dari Supabase
+### 2.2 Modul Penilaian TGMD-3
 
-### 5. Kalkulasi Data yang Tetap di Client
+Komponen baru `AssessmentModule.tsx`:
+- Parent-reported rating per skill
+- Skala: 0 (belum bisa) / 1 (mulai muncul) / 2 (berkembang) / 3 (kompeten)
+- Tracking perkembangan skill over time
+- Disimpan ke tabel `skill_assessments`
 
-Beberapa data dihitung dari `workout_sessions` yang di-fetch dari Supabase:
-- `totalSessions` = jumlah baris di `workout_sessions`
-- `streakDays` = dihitung dari tanggal-tanggal berturut-turut
-- `workoutHistory` = array dari `workout_sessions`
-- Badge, progress chart, dan statistik tetap dihitung di client dari data yang sama
+### 2.3 Parent Coaching yang Ditingkatkan
 
-Ini berarti interface `UserData` tetap sama, hanya sumber datanya yang berubah dari localStorage ke Supabase.
+Mengganti `EducationPage.tsx` dan `ParentGuideModal.tsx` dengan konten research-credible:
+- Tujuan intervensi
+- Cara membimbing anak dengan aman
+- Pentingnya pengulangan
+- Prinsip dorongan positif
+- Frekuensi yang direkomendasikan (3-4 sesi per minggu)
+- Bahasa profesional dan kredibel
 
-### 6. Ekspor Data untuk Riset
+### 2.4 Behavioral Adherence System
 
-Tabel `user_progress` dirancang agar bisa langsung di-ekspor dari Supabase Dashboard:
-- Buka Supabase Dashboard > Table Editor > user_progress
-- Klik "Export to CSV"
-- Buka CSV di Excel
+- Completion feedback: "Great job!", "Session complete!", "Progress updated!"
+- Progress indicators visual
+- Motivational messages tanpa tekanan performa
+- Tidak ada leaderboard atau kompetisi
 
-Setiap record berisi `user_id`, `username`, `date`, `category`, `activity_name`, `score`, `notes` - siap untuk analisis longitudinal.
+---
+
+## FASE 3: Dashboard Riset, Monitoring, dan UI Refinement
+
+### 3.1 Research Mode Dashboard
+
+Komponen baru `ResearchDashboard.tsx`:
+- Aktifkan via toggle di profil
+- Menampilkan:
+  - Session timestamps
+  - Exercise exposure (frekuensi setiap latihan)
+  - Session completion rate
+  - Adherence frequency
+  - Progression data per minggu
+- Data terstruktur untuk ekspor
+
+### 3.2 Progress Monitoring Dashboard yang Ditingkatkan
+
+Update `Dashboard.tsx` dan `ProgressReport.tsx`:
+- Total sessions completed
+- Adherence frequency (sesi/minggu vs target 3-4x)
+- Current level dan week
+- Progression status
+- Locomotor skill exposure
+- Ball skill exposure
+- Completion consistency
+- Visual progress indicators
+
+### 3.3 Update Chart dan Statistik
+
+Update `progressUtils.ts` untuk domain baru:
+- Locomotor, Jumping & Hopping, Balance, Ball Skills, Combined
+- Distribution pie chart dengan 5 domain
+- Weekly/monthly trends per domain
+
+### 3.4 UI Refinement
+
+Upgrade tampilan menjadi "digital therapeutic platform":
+- Clean, calm, minimal, professional
+- Large buttons
+- Clear hierarchy
+- Mobile-first
+- Parent-trustworthy appearance
+- Tidak clutter
+
+---
 
 ## Detail Teknis
 
-### Perubahan pada `UserData` Interface
-
-Interface `UserData` tidak berubah strukturnya. Field tambahan `id` (uuid) dan `email` ditambahkan untuk kebutuhan Supabase, tapi semua komponen tetap menerima data yang sama.
-
-### RLS (Row Level Security)
-
-Semua tabel akan menggunakan RLS:
-- Users hanya bisa membaca dan menulis data mereka sendiri
-- Kebijakan berdasarkan `auth.uid() = user_id`
-
-### Pengecekan Username Unik
-
-1. **Database level**: Constraint `UNIQUE` pada kolom `username`
-2. **Frontend level**: Query ke `users_profile` sebelum registrasi untuk memberikan feedback instan
-
-### Session Persistence
-
-Supabase Auth secara default menyimpan token di localStorage browser dan otomatis me-refresh token. Ini memberikan "remember login" tanpa konfigurasi tambahan. Data progress selalu di-load dari server, jadi bisa diakses dari perangkat manapun.
-
-## File yang Akan Dibuat
+### File yang Akan Dibuat
 
 | File | Deskripsi |
-|------|-----------|
-| `src/lib/authService.ts` | Fungsi auth (signup, signin, signout, session) |
-| `src/lib/progressService.ts` | Fungsi CRUD workout & progress ke Supabase |
-| Migrasi SQL (3 tabel + trigger + RLS) | Schema database |
+|---|---|
+| `src/lib/curriculumData.ts` | Kurikulum 8 minggu + approved exercise library (34 latihan) |
+| `src/components/SessionRunner.tsx` | Sistem eksekusi sesi baru (4 latihan, 3 menit maks) |
+| `src/components/AssessmentModule.tsx` | Modul penilaian TGMD-3 (parent-reported) |
+| `src/components/ResearchDashboard.tsx` | Dashboard mode riset |
+| `src/components/ParentCoachingPage.tsx` | Halaman coaching orang tua yang ditingkatkan |
+| `src/components/SessionComplete.tsx` | Layar penyelesaian sesi dengan feedback |
+| `src/components/ExerciseDetail.tsx` | Detail latihan dengan instruksi orang tua dan anak |
+| `src/components/CurriculumProgress.tsx` | Visualisasi progres kurikulum 8 minggu |
+| `src/components/SkillRatingCard.tsx` | Kartu penilaian per skill |
+| Migrasi SQL | Tabel skill_assessments + kolom baru di users_profile |
 
-## File yang Akan Dimodifikasi
+### File yang Akan Dimodifikasi
 
 | File | Perubahan |
-|------|-----------|
-| `src/components/LoginForm.tsx` | Tambah email/password, mode daftar/masuk, validasi username |
-| `src/pages/Index.tsx` | Ganti localStorage auth dengan Supabase session |
-| `src/components/Dashboard.tsx` | Logout via Supabase, save data via progressService |
-| `src/components/WorkoutTimer.tsx` | Simpan sesi ke Supabase |
-| `src/components/ScheduleSection.tsx` | Update jadwal ke Supabase |
-| `src/lib/storage.ts` | Refaktor - hapus fungsi localStorage, pertahankan utilitas |
-| `src/lib/workoutData.ts` | Tambah field `id` dan `email` ke interface UserData |
+|---|---|
+| `src/lib/workoutData.ts` | Ganti seluruh exercise library dengan 34 latihan TGMD-3, update types dan domains |
+| `src/lib/progressUtils.ts` | Update untuk 5 domain baru, kalkulasi adherence, exposure |
+| `src/lib/progressService.ts` | Tambah fungsi untuk skill_assessments, curriculum tracking |
+| `src/lib/badgeData.ts` | Update exercise ID references untuk library baru |
+| `src/lib/authService.ts` | Tambah current_week, current_level, research_mode ke UserProfile |
+| `src/components/Dashboard.tsx` | Tambah curriculum progress, level indicator, research mode toggle, navigasi ke assessment |
+| `src/components/WorkoutTimer.tsx` | Refaktor menjadi 4-exercise session flow dengan parent/child instructions |
+| `src/components/CategoryCard.tsx` | Update untuk 5 domain baru (Locomotor, Jumping, Balance, Ball Skills, Combined) |
+| `src/components/ProgressReport.tsx` | Update charts untuk 5 domain, tambah adherence metrics |
+| `src/components/EducationPage.tsx` | Konten TGMD-3 aligned, research-credible language |
+| `src/components/ParentGuideModal.tsx` | Konten coaching yang ditingkatkan |
+| `src/components/HistorySection.tsx` | Tampilkan domain exercises per sesi |
+| `src/components/StatsCard.tsx` | Tambah variant untuk domain baru |
+| `src/components/BadgesSection.tsx` | Update untuk domain baru |
+| `src/pages/Index.tsx` | Load current_week dan level dari profil |
+| `src/index.css` | Tambah warna domain baru (jumping, balance, ballskills) |
+| `tailwind.config.ts` | Tambah warna domain baru |
 
-## Prasyarat
+### Perubahan pada Exercise Type
 
-Sebelum implementasi, perlu mengaktifkan Supabase Cloud agar tabel dan auth bisa dibuat.
+```text
+Sebelum:
+  Exercise {
+    id, name, description, category (3 tipe),
+    repetitions, sets, durationPerRep, restTime,
+    illustration
+  }
 
+Sesudah:
+  Exercise {
+    id, name,
+    domain: locomotor | jumping | balance | ball_skills | combined,
+    duration: 5-15 (detik),
+    equipment: string (household item atau "none"),
+    parentInstruction: string,
+    childInstruction: string,
+    motorGoal: balance | locomotor | coordination | object_control,
+    safetyNote: string,
+    illustration: string (emoji),
+    weekIntroduced: 1-8
+  }
+```
+
+### Perubahan pada UserData
+
+```text
+Tambahan field:
+  currentWeek: number (1-8)
+  currentLevel: number
+  researchMode: boolean
+```
+
+### Perubahan pada Session Flow
+
+```text
+Sebelum:
+  Pilih kategori -> Jalankan semua latihan di kategori
+  (bisa 5-7 latihan, durasi tak terbatas)
+
+Sesudah:
+  Sistem memilih 4 latihan dari kurikulum minggu ini ->
+  Exercise 1 (5-15 detik) -> Complete ->
+  Exercise 2 (5-15 detik) -> Complete ->
+  Exercise 3 (5-15 detik) -> Complete ->
+  Exercise 4 (5-15 detik) -> Complete ->
+  Session Complete (total maks 3 menit)
+```
+
+### Skema Penilaian TGMD-3
+
+```text
+Per skill:
+  0 = Belum bisa (not able)
+  1 = Mulai muncul (emerging)
+  2 = Berkembang (developing)
+  3 = Kompeten (competent)
+
+Domain yang dinilai:
+  - Locomotor skills
+  - Ball skills (Object Control)
+```
+
+### Developmental Safety Constraints
+
+Semua latihan dijamin:
+- Developmentally appropriate untuk usia 4-7
+- Sederhana dan bisa dipahami langsung
+- Durasi pendek (5-15 detik per latihan)
+- Instruksi playful
+- Aman di dalam rumah
+- Ruang maksimal 2 meter
+- Equipment: bola lembut, kaos kaki gulung, bantal, boneka, selotip lantai
+
+TIDAK termasuk: strength training, endurance, fitness drill, muscle training, athletic conditioning.
+
+### Research Data Export
+
+Tabel `user_progress` dan `skill_assessments` mendukung ekspor CSV/Excel langsung dari Lovable Cloud untuk analisis longitudinal. Setiap record berisi konteks lengkap (user_id, username, date, domain, exercise, score/rating).
+
+---
+
+## Urutan Implementasi
+
+Karena skala perubahan sangat besar, implementasi dilakukan dalam urutan:
+
+1. **Database migration** - tabel baru + kolom baru
+2. **Exercise library** - workoutData.ts dengan 34 latihan TGMD-3
+3. **Curriculum system** - curriculumData.ts
+4. **Session runner** - flow sesi 4 latihan
+5. **Dashboard update** - domain baru, level, curriculum progress
+6. **Assessment module** - penilaian TGMD-3
+7. **Parent coaching** - konten ditingkatkan
+8. **Research dashboard** - mode riset
+9. **Progress charts update** - 5 domain baru
+10. **Badge system update** - exercise ID baru
+11. **UI polish** - tampilan digital therapeutic
+
+Setiap langkah menghasilkan sistem yang fungsional sehingga bisa diuji bertahap.
