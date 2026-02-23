@@ -29,16 +29,17 @@ const Index = () => {
       lastActiveDate: lastDate,
       workoutHistory: history,
       weeklySchedule: profile.weekly_schedule,
+      currentWeek: profile.current_week,
+      currentLevel: profile.current_level,
+      researchMode: profile.research_mode,
     };
     return userData;
   };
 
   useEffect(() => {
-    // Set up auth listener BEFORE checking session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
-          // Use setTimeout to avoid Supabase auth deadlock
           setTimeout(async () => {
             const userData = await loadUserData(session.user.id);
             setUser(userData);
@@ -51,7 +52,6 @@ const Index = () => {
       }
     );
 
-    // Check existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         const userData = await loadUserData(session.user.id);
@@ -71,14 +71,6 @@ const Index = () => {
     }
   };
 
-  const handleLogout = () => {
-    setUser(null);
-  };
-
-  const handleUserUpdate = (updatedUser: UserData) => {
-    setUser(updatedUser);
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-hero flex items-center justify-center">
@@ -95,10 +87,10 @@ const Index = () => {
   }
 
   return (
-    <Dashboard 
-      user={user} 
-      onLogout={handleLogout} 
-      onUserUpdate={handleUserUpdate}
+    <Dashboard
+      user={user}
+      onLogout={() => setUser(null)}
+      onUserUpdate={(updatedUser) => setUser(updatedUser)}
     />
   );
 };

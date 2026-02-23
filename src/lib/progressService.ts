@@ -85,3 +85,54 @@ export const getProgressEntries = async (userId: string) => {
     .order('created_at', { ascending: false });
   return data || [];
 };
+
+// Skill Assessment functions
+export const saveSkillAssessment = async (entry: {
+  user_id: string;
+  skill_id: string;
+  domain: string;
+  rating: number;
+  notes?: string;
+}): Promise<void> => {
+  await supabase.from('skill_assessments' as any).insert(entry);
+};
+
+export const getSkillAssessments = async (userId: string) => {
+  const { data } = await supabase
+    .from('skill_assessments' as any)
+    .select('*')
+    .eq('user_id', userId)
+    .order('assessed_at', { ascending: false });
+  return (data as any[]) || [];
+};
+
+export const updateCurriculumProgress = async (
+  userId: string,
+  currentWeek: number,
+  currentLevel: number
+): Promise<void> => {
+  await supabase
+    .from('users_profile')
+    .update({ current_week: currentWeek, current_level: currentLevel } as any)
+    .eq('id', userId);
+};
+
+export const toggleResearchMode = async (
+  userId: string,
+  enabled: boolean
+): Promise<void> => {
+  await supabase
+    .from('users_profile')
+    .update({ research_mode: enabled } as any)
+    .eq('id', userId);
+};
+
+// Calculate adherence: sessions per week vs recommended 3-4
+export const calculateAdherence = (sessions: WorkoutSession[], weeks: number = 4): { rate: number; sessionsPerWeek: number } => {
+  if (weeks === 0) return { rate: 0, sessionsPerWeek: 0 };
+  const totalSessions = sessions.length;
+  const sessionsPerWeek = totalSessions / weeks;
+  const targetPerWeek = 3.5;
+  const rate = Math.min((sessionsPerWeek / targetPerWeek) * 100, 100);
+  return { rate, sessionsPerWeek: Math.round(sessionsPerWeek * 10) / 10 };
+};

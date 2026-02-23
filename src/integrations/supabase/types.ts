@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      skill_assessments: {
+        Row: {
+          assessed_at: string
+          domain: string
+          id: string
+          notes: string | null
+          rating: number
+          skill_id: string
+          user_id: string
+        }
+        Insert: {
+          assessed_at?: string
+          domain: string
+          id?: string
+          notes?: string | null
+          rating?: number
+          skill_id: string
+          user_id: string
+        }
+        Update: {
+          assessed_at?: string
+          domain?: string
+          id?: string
+          notes?: string | null
+          rating?: number
+          skill_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skill_assessments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_progress: {
         Row: {
           activity_name: string
@@ -63,8 +101,11 @@ export type Database = {
           age: number | null
           avatar: string | null
           created_at: string
+          current_level: number
+          current_week: number
           email: string | null
           id: string
+          research_mode: boolean
           username: string
           weekly_schedule: number[] | null
         }
@@ -72,8 +113,11 @@ export type Database = {
           age?: number | null
           avatar?: string | null
           created_at?: string
+          current_level?: number
+          current_week?: number
           email?: string | null
           id: string
+          research_mode?: boolean
           username: string
           weekly_schedule?: number[] | null
         }
@@ -81,8 +125,11 @@ export type Database = {
           age?: number | null
           avatar?: string | null
           created_at?: string
+          current_level?: number
+          current_week?: number
           email?: string | null
           id?: string
+          research_mode?: boolean
           username?: string
           weekly_schedule?: number[] | null
         }

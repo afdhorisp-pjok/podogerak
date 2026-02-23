@@ -1,7 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, Brain, Heart, Users, Sparkles } from 'lucide-react';
+import { ArrowLeft, Brain, Heart, Users, Sparkles, Target } from 'lucide-react';
 
 interface EducationPageProps {
   onBack: () => void;
@@ -11,87 +10,62 @@ export const EducationPage = ({ onBack }: EducationPageProps) => {
   const sections = [
     {
       icon: <Brain className="w-8 h-8 text-primary" />,
-      title: 'Apa itu Motorik Kasar?',
-      content: `Motorik kasar adalah kemampuan menggunakan otot-otot besar tubuh untuk melakukan gerakan seperti berlari, melompat, melempar, dan menjaga keseimbangan. Kemampuan ini sangat penting untuk perkembangan fisik dan kognitif anak.`,
+      title: 'Apa itu TGMD-3?',
+      content: `Test of Gross Motor Development (TGMD-3) adalah instrumen penilaian standar yang digunakan secara luas dalam penelitian perkembangan motorik anak. TGMD-3 mengukur dua domain utama:\n\n🏃 **Keterampilan Lokomotor** — gerakan berpindah tempat (berlari, melompat, hop, gallop)\n\n⚽ **Keterampilan Bola (Object Control)** — gerakan mengontrol objek (melempar, menangkap, menendang)`,
       emoji: '🧠',
     },
     {
+      icon: <Target className="w-8 h-8 text-secondary" />,
+      title: 'Tujuan Intervensi PodoGerak',
+      content: `PodoGerak dirancang sebagai platform intervensi motorik digital untuk mendukung perkembangan keterampilan motorik kasar anak usia 4-7 tahun melalui:\n\n• Kurikulum terstruktur 8 minggu\n• Latihan yang selaras dengan domain TGMD-3\n• Progresi bertahap dari fundamental ke mastery\n• Lingkungan rumah yang aman\n• Bimbingan orang tua sebagai fasilitator`,
+      emoji: '🎯',
+    },
+    {
       icon: <Sparkles className="w-8 h-8 text-accent" />,
-      title: 'Mengapa Penting?',
-      content: `Perkembangan motorik kasar yang baik membantu anak:
-      
-• Membangun kekuatan dan ketahanan otot
-• Meningkatkan koordinasi dan keseimbangan
-• Mengembangkan kepercayaan diri
-• Mendukung kemampuan belajar di sekolah
-• Mempersiapkan keterampilan olahraga
-• Meningkatkan kesehatan jantung dan paru-paru`,
+      title: 'Domain Motorik dalam PodoGerak',
+      content: `Latihan di PodoGerak mencakup 5 domain:\n\n🏃 **Lokomotor** — Berjalan, berlari, melangkah\n🐸 **Lompat & Hop** — Melompat dua kaki, hop satu kaki\n🧘 **Keseimbangan** — Berdiri satu kaki, freeze\n⚽ **Keterampilan Bola** — Melempar, menangkap, menendang\n🌟 **Gabungan** — Integrasi lokomotor + bola\n\nSetiap domain penting untuk perkembangan motorik yang seimbang.`,
       emoji: '✨',
     },
     {
       icon: <Heart className="w-8 h-8 text-secondary" />,
-      title: 'Jenis Gerakan Motorik Kasar',
-      content: `Ada tiga jenis utama gerakan motorik kasar:
-
-🏃 **Lokomotor** - Gerakan berpindah tempat
-Contoh: berjalan, berlari, melompat, skipping
-
-🧘 **Non-Lokomotor** - Gerakan di tempat
-Contoh: membungkuk, memutar, menyeimbangkan, stretching
-
-🎾 **Manipulatif** - Gerakan dengan objek
-Contoh: melempar, menangkap, mendorong, menendang`,
+      title: 'Prinsip Keamanan Perkembangan',
+      content: `Semua latihan di PodoGerak dirancang dengan prinsip keamanan perkembangan:\n\n• Sesuai usia 4-7 tahun (developmentally appropriate)\n• Durasi pendek (5-15 detik per gerakan)\n• Ruang maksimal 2 meter\n• Equipment rumah tangga yang aman\n• TIDAK termasuk latihan kekuatan, daya tahan, atau kondisi fisik atletik\n\nIni adalah program pengembangan motorik, bukan program kebugaran.`,
       emoji: '❤️',
     },
     {
       icon: <Users className="w-8 h-8 text-success" />,
-      title: 'Peran Orang Tua',
-      content: `Orang tua memiliki peran penting dalam mendukung perkembangan motorik kasar anak:
-
-• Berikan kesempatan bermain aktif setiap hari
-• Jadilah contoh dengan ikut bergerak bersama anak
-• Berikan pujian untuk setiap usaha anak
-• Sesuaikan aktivitas dengan usia dan kemampuan
-• Ciptakan lingkungan yang aman untuk bergerak
-• Jadikan olahraga sebagai kegiatan menyenangkan`,
+      title: 'Peran Orang Tua sebagai Fasilitator',
+      content: `Orang tua berperan sebagai fasilitator intervensi:\n\n• **Konsistensi** — Lakukan 3-4 sesi per minggu\n• **Dorongan positif** — Pujian untuk setiap usaha, bukan hasil\n• **Pengulangan** — Repetisi membangun keterampilan motorik\n• **Keamanan** — Pastikan lingkungan aman sebelum memulai\n• **Observasi** — Perhatikan perkembangan anak dan lakukan penilaian berkala\n• **Bermain** — Jadikan setiap sesi sebagai waktu bermain yang menyenangkan`,
       emoji: '👨‍👩‍👧',
     },
   ];
 
   return (
     <div className="min-h-screen bg-gradient-hero">
-      {/* Header */}
       <div className="sticky top-0 bg-background/80 backdrop-blur-lg z-10 border-b">
         <div className="container max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={onBack}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <h1 className="text-xl font-fredoka font-bold">Edukasi Motorik Kasar</h1>
-            <p className="text-sm text-muted-foreground">Kenali pentingnya gerakan untuk anak</p>
+            <h1 className="text-xl font-fredoka font-bold">Edukasi & Informasi Ilmiah</h1>
+            <p className="text-sm text-muted-foreground">TGMD-3 Aligned Motor Development</p>
           </div>
         </div>
       </div>
 
-      {/* Content */}
       <div className="container max-w-2xl mx-auto px-4 py-6">
         <div className="space-y-6">
-          {/* Hero */}
           <Card className="bg-gradient-primary text-primary-foreground border-0 overflow-hidden">
             <CardContent className="p-6 text-center">
               <div className="text-6xl mb-4 animate-bounce-soft">🏃‍♂️</div>
-              <h2 className="text-2xl font-fredoka font-bold mb-2">
-                Gerak Sehat, Anak Hebat!
-              </h2>
-              <p className="opacity-90">
-                Mari pelajari pentingnya pengembangan motorik kasar untuk tumbuh kembang anak
-              </p>
+              <h2 className="text-2xl font-fredoka font-bold mb-2">PodoGerak</h2>
+              <p className="opacity-90">Platform Intervensi Motorik Digital untuk Anak Usia 4-7 Tahun</p>
             </CardContent>
           </Card>
 
-          {/* Sections */}
           {sections.map((section, index) => (
-            <Card 
+            <Card
               key={section.title}
               className="animate-slide-up opacity-0"
               style={{ animationDelay: `${index * 100}ms`, animationFillMode: 'forwards' }}
@@ -110,15 +84,12 @@ Contoh: melempar, menangkap, mendorong, menendang`,
             </Card>
           ))}
 
-          {/* Footer */}
           <Card className="bg-muted/50 border-dashed">
             <CardContent className="p-6 text-center">
-              <p className="text-sm text-muted-foreground mb-4">
-                PodoGerak dikembangkan berdasarkan prinsip-prinsip pendidikan jasmani anak usia dini
+              <p className="text-sm text-muted-foreground mb-2">
+                PodoGerak dikembangkan berdasarkan kerangka TGMD-3 dan prinsip intervensi motorik berbasis bukti.
               </p>
-              <p className="text-xs text-muted-foreground">
-                Dibuat dengan ❤️ oleh Afdhoris Pradana Putra
-              </p>
+              <p className="text-xs text-muted-foreground">Dibuat oleh Afdhoris Pradana Putra</p>
             </CardContent>
           </Card>
         </div>

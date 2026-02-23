@@ -7,6 +7,9 @@ export interface UserProfile {
   avatar: string;
   age: number;
   weekly_schedule: number[];
+  current_week: number;
+  current_level: number;
+  research_mode: boolean;
 }
 
 export const checkUsernameAvailable = async (username: string): Promise<boolean> => {
@@ -25,7 +28,6 @@ export const signUp = async (
   avatar: string,
   age: number
 ): Promise<{ error: string | null }> => {
-  // Check username uniqueness first
   const available = await checkUsernameAvailable(username);
   if (!available) {
     return { error: 'Username sudah digunakan. Silakan gunakan username lain.' };
@@ -78,15 +80,18 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
     avatar: data.avatar || 'astronaut',
     age: data.age || 6,
     weekly_schedule: data.weekly_schedule || [1, 3, 5],
+    current_week: (data as any).current_week ?? 1,
+    current_level: (data as any).current_level ?? 1,
+    research_mode: (data as any).research_mode ?? false,
   };
 };
 
 export const updateProfile = async (
   userId: string,
-  updates: Partial<Pick<UserProfile, 'avatar' | 'age' | 'weekly_schedule'>>
+  updates: Partial<Pick<UserProfile, 'avatar' | 'age' | 'weekly_schedule' | 'current_week' | 'current_level' | 'research_mode'>>
 ): Promise<void> => {
   await supabase
     .from('users_profile')
-    .update(updates)
+    .update(updates as any)
     .eq('id', userId);
 };
