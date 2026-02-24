@@ -60,6 +60,14 @@ export const signIn = async (
   return { error: null };
 };
 
+export const resetPassword = async (email: string): Promise<{ error: string | null }> => {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`,
+  });
+  if (error) return { error: error.message };
+  return { error: null };
+};
+
 export const signOut = async (): Promise<void> => {
   await supabase.auth.signOut();
 };

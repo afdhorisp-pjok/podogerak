@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AvatarSelector } from './AvatarSelector';
-import { signUp, signIn } from '@/lib/authService';
+import { signUp, signIn, resetPassword } from '@/lib/authService';
 
 interface LoginFormProps {
   onLogin: () => void;
@@ -17,7 +17,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
   const [avatar, setAvatar] = useState('astronaut');
   const [age, setAge] = useState('');
   const [step, setStep] = useState(1);
-  const [mode, setMode] = useState<'register' | 'login'>('register');
+  const [mode, setMode] = useState<'register' | 'login' | 'forgot'>('register');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -36,6 +36,17 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     }
 
     setSuccessMessage('Akun berhasil dibuat! Silakan cek email untuk verifikasi, lalu masuk.');
+    setMode('login');
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) return;
+    setIsSubmitting(true);
+    setError('');
+    const { error: err } = await resetPassword(email);
+    setIsSubmitting(false);
+    if (err) { setError(err); return; }
+    setSuccessMessage('Link reset password telah dikirim ke email kamu. Silakan cek inbox.');
     setMode('login');
   };
 
@@ -72,14 +83,18 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
         <Card className="animate-scale-in shadow-card border-0">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">
-              {mode === 'login'
+              {mode === 'forgot'
+                ? 'Lupa Password'
+                : mode === 'login'
                 ? 'Masuk'
                 : step === 1
                 ? 'Siapa nama jagoan kita?'
                 : 'Pilih avatarmu!'}
             </CardTitle>
             <CardDescription>
-              {mode === 'login'
+              {mode === 'forgot'
+                ? 'Masukkan email untuk menerima link reset password'
+                : mode === 'login'
                 ? 'Masuk dengan email dan password'
                 : step === 1
                 ? 'Masukkan data untuk mendaftar'
@@ -98,7 +113,38 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
               </div>
             )}
 
-            {mode === 'login' ? (
+            {mode === 'forgot' ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="forgot-email" className="text-base font-semibold">Email</Label>
+                  <Input
+                    id="forgot-email"
+                    type="email"
+                    placeholder="contoh@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-14 text-lg rounded-xl border-2 focus:border-primary"
+                  />
+                </div>
+                <Button
+                  onClick={handleForgotPassword}
+                  disabled={!email || isSubmitting}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isSubmitting ? 'Mengirim...' : 'Kirim Link Reset 📧'}
+                </Button>
+                <p className="text-center text-sm text-muted-foreground">
+                  Ingat password?{' '}
+                  <button
+                    onClick={() => { setMode('login'); setError(''); setSuccessMessage(''); }}
+                    className="text-primary font-semibold hover:underline"
+                  >
+                    Masuk di sini
+                  </button>
+                </p>
+              </>
+            ) : mode === 'login' ? (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-base font-semibold">Email</Label>
@@ -130,6 +176,14 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                 >
                   {isSubmitting ? 'Memproses...' : 'Masuk 🚀'}
                 </Button>
+                <p className="text-center text-sm text-muted-foreground">
+                  <button
+                    onClick={() => { setMode('forgot'); setError(''); setSuccessMessage(''); }}
+                    className="text-primary font-semibold hover:underline"
+                  >
+                    Lupa password?
+                  </button>
+                </p>
                 <p className="text-center text-sm text-muted-foreground">
                   Belum punya akun?{' '}
                   <button
