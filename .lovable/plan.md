@@ -1,50 +1,50 @@
 
 
-# Fitur Lupa Password
+# Perbaiki Error Signup "Database error saving new user"
 
-## Ringkasan
+## Masalah
 
-Menambahkan fitur "Lupa Password" yang memungkinkan pengguna mereset password melalui email. Terdiri dari 2 bagian: link di halaman login untuk mengirim email reset, dan halaman `/reset-password` untuk memasukkan password baru.
+Saat mendaftar dengan username yang sudah ada, fungsi `checkUsernameAvailable` gagal mendeteksi duplikat karena tabel `users_profile` dilindungi RLS -- pengguna yang belum login tidak bisa membaca data dari tabel tersebut. Akibatnya, pengecekan selalu menganggap username tersedia, lalu trigger `handle_new_user` gagal karena constraint UNIQUE pada kolom username, menghasilkan error teknis "Database error saving new user".
 
-## Perubahan
+## Solusi
 
-### 1. Update `src/lib/authService.ts`
-Tambah fungsi `resetPassword(email)` yang memanggil `supabase.auth.resetPasswordForEmail()` dengan redirect ke `/reset-password`.
+### 1. Buat Database Function `check_username_available`
 
-### 2. Update `src/components/LoginForm.tsx`
-- Tambah mode `'forgot'` pada state `mode`
-- Tampilkan form input email + tombol "Kirim Link Reset" saat mode `'forgot'`
-- Tambah link "Lupa password?" di bawah form login
+Buat fungsi database dengan `SECURITY DEFINER` yang bisa mengecek ketersediaan username tanpa terkena batasan RLS. Fungsi ini menerima parameter username dan mengembalikan boolean.
 
-### 3. Buat `src/pages/ResetPassword.tsx`
-- Halaman baru di route `/reset-password`
-- Deteksi `type=recovery` dari URL hash (otomatis dari link email)
-- Form input password baru + konfirmasi password
-- Panggil `supabase.auth.updateUser({ password })` untuk update password
-- Setelah berhasil, redirect ke halaman utama
+### 2. Update `src/lib/authService.ts`
 
-### 4. Update `src/App.tsx`
-- Tambah route `/reset-password` yang mengarah ke komponen `ResetPassword`
+- Ganti `checkUsernameAvailable` agar memanggil `supabase.rpc('check_username_available', { username_input })` 
+- Tambahkan penanganan error yang lebih baik di fungsi `signUp`: jika error message mengandung "already registered" atau "duplicate", tampilkan pesan bahasa Indonesia yang ramah
+
+### 3. Update `src/components/LoginForm.tsx`
+
+- Tambahkan pengecekan username di step 1 sebelum lanjut ke step 2, sehingga error terdeteksi lebih awal
+- Jika username sudah dipakai, tampilkan pesan error langsung di step 1
 
 ## Detail Teknis
 
-### Flow Reset Password
-1. User klik "Lupa password?" di halaman login
-2. User masukkan email, klik "Kirim Link Reset"
-3. Email dikirim otomatis oleh sistem auth (email bawaan)
-4. User klik link di email, diarahkan ke `/reset-password`
-5. User masukkan password baru, klik "Simpan Password Baru"
-6. Password di-update, user diarahkan ke halaman utama
+### Migration SQL
 
-### File yang Dibuat
-| File | Deskripsi |
-|------|-----------|
-| `src/pages/ResetPassword.tsx` | Halaman reset password dengan form password baru |
+```sql
+CREATE OR REPLACE FUNCTION public.check_username_available(username_input text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  RETURN NOT EXISTS (
+    SELECT 1 FROM public.users_profile WHERE username = username_input
+  );
+END;
+$$;
+```
 
 ### File yang Dimodifikasi
+
 | File | Perubahan |
 |------|-----------|
-| `src/lib/authService.ts` | Tambah fungsi `resetPassword()` |
-| `src/components/LoginForm.tsx` | Tambah mode forgot password + link "Lupa password?" |
-| `src/App.tsx` | Tambah route `/reset-password` |
+| `src/lib/authService.ts` | Ganti `checkUsernameAvailable` ke `supabase.rpc()`, tambah error mapping di `signUp` |
+| `src/components/LoginForm.tsx` | Cek username availability saat klik "Lanjut Pilih Avatar" |
 
