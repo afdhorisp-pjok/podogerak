@@ -1,50 +1,60 @@
 
 
-# Perbaiki Error Signup "Database error saving new user"
+# Perbaiki Verifikasi Pembuatan Akun
 
 ## Masalah
 
-Saat mendaftar dengan username yang sudah ada, fungsi `checkUsernameAvailable` gagal mendeteksi duplikat karena tabel `users_profile` dilindungi RLS -- pengguna yang belum login tidak bisa membaca data dari tabel tersebut. Akibatnya, pengecekan selalu menganggap username tersedia, lalu trigger `handle_new_user` gagal karena constraint UNIQUE pada kolom username, menghasilkan error teknis "Database error saving new user".
+Ada dua masalah utama yang menyebabkan pembuatan akun tidak berjalan dengan benar:
+
+1. **Trigger `handle_new_user` tidak terpasang** - Fungsi `handle_new_user()` sudah ada di database, tapi tidak ada trigger yang menghubungkannya ke tabel `auth.users`. Akibatnya, saat user mendaftar, profil tidak otomatis dibuat di tabel `users_profile`. Ini juga menyebabkan `check_username_available` selalu mengembalikan `true` karena tabel `users_profile` kosong.
+
+2. **Fungsi `handle_new_user` tidak menyimpan avatar dan age** - Fungsi hanya menyimpan `id`, `email`, dan `username`, padahal saat signup juga dikirimkan data `avatar` dan `age` di metadata.
 
 ## Solusi
 
-### 1. Buat Database Function `check_username_available`
+### 1. Buat Migration: Pasang Trigger + Update Fungsi
 
-Buat fungsi database dengan `SECURITY DEFINER` yang bisa mengecek ketersediaan username tanpa terkena batasan RLS. Fungsi ini menerima parameter username dan mengembalikan boolean.
+Satu migration SQL yang akan:
+- Update fungsi `handle_new_user()` agar juga menyimpan `avatar` dan `age` dari `raw_user_meta_data`
+- Buat trigger `on_auth_user_created` pada tabel `auth.users` yang memanggil fungsi ini setiap ada user baru
 
-### 2. Update `src/lib/authService.ts`
+### Detail Teknis
 
-- Ganti `checkUsernameAvailable` agar memanggil `supabase.rpc('check_username_available', { username_input })` 
-- Tambahkan penanganan error yang lebih baik di fungsi `signUp`: jika error message mengandung "already registered" atau "duplicate", tampilkan pesan bahasa Indonesia yang ramah
-
-### 3. Update `src/components/LoginForm.tsx`
-
-- Tambahkan pengecekan username di step 1 sebelum lanjut ke step 2, sehingga error terdeteksi lebih awal
-- Jika username sudah dipakai, tampilkan pesan error langsung di step 1
-
-## Detail Teknis
-
-### Migration SQL
+**Migration SQL:**
 
 ```sql
-CREATE OR REPLACE FUNCTION public.check_username_available(username_input text)
-RETURNS boolean
+-- Update function to include avatar and age
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 BEGIN
-  RETURN NOT EXISTS (
-    SELECT 1 FROM public.users_profile WHERE username = username_input
+  INSERT INTO public.users_profile (id, email, username, avatar, age)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'username', NEW.email),
+    COALESCE(NEW.raw_user_meta_data->>'avatar', 'astronaut'),
+    COALESCE((NEW.raw_user_meta_data->>'age')::integer, 6)
   );
+  RETURN NEW;
 END;
 $$;
+
+-- Create trigger on auth.users
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
 ```
 
 ### File yang Dimodifikasi
 
-| File | Perubahan |
-|------|-----------|
-| `src/lib/authService.ts` | Ganti `checkUsernameAvailable` ke `supabase.rpc()`, tambah error mapping di `signUp` |
-| `src/components/LoginForm.tsx` | Cek username availability saat klik "Lanjut Pilih Avatar" |
+Tidak ada perubahan kode frontend -- hanya migration database.
+
+| Perubahan | Deskripsi |
+|-----------|-----------|
+| Migration SQL | Update fungsi + pasang trigger pada `auth.users` |
 
