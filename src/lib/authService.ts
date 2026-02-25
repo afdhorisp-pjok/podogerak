@@ -13,12 +13,14 @@ export interface UserProfile {
 }
 
 export const checkUsernameAvailable = async (username: string): Promise<boolean> => {
-  const { data } = await supabase
-    .from('users_profile')
-    .select('id')
-    .eq('username', username)
-    .maybeSingle();
-  return !data;
+  const { data, error } = await supabase.rpc('check_username_available', {
+    username_input: username,
+  } as any);
+  if (error) {
+    console.error('Error checking username:', error);
+    return true; // fallback: assume available, let server validate
+  }
+  return data as boolean;
 };
 
 export const signUp = async (
@@ -43,6 +45,10 @@ export const signUp = async (
   });
 
   if (error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes('already registered') || msg.includes('duplicate') || msg.includes('database error')) {
+      return { error: 'Username atau email sudah terdaftar. Silakan gunakan yang lain.' };
+    }
     return { error: error.message };
   }
 

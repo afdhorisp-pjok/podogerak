@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AvatarSelector } from './AvatarSelector';
-import { signUp, signIn, resetPassword } from '@/lib/authService';
+import { signUp, signIn, resetPassword, checkUsernameAvailable } from '@/lib/authService';
 
 interface LoginFormProps {
   onLogin: () => void;
@@ -242,12 +242,22 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                   />
                 </div>
                 <Button
-                  onClick={() => setStep(2)}
-                  disabled={!username.trim() || !age || !email || !password}
+                  onClick={async () => {
+                    setError('');
+                    setIsSubmitting(true);
+                    const available = await checkUsernameAvailable(username.trim());
+                    setIsSubmitting(false);
+                    if (!available) {
+                      setError('Username sudah digunakan. Silakan gunakan username lain.');
+                      return;
+                    }
+                    setStep(2);
+                  }}
+                  disabled={!username.trim() || !age || !email || !password || isSubmitting}
                   className="w-full"
                   size="lg"
                 >
-                  Lanjut Pilih Avatar →
+                  {isSubmitting ? 'Mengecek...' : 'Lanjut Pilih Avatar →'}
                 </Button>
                 <p className="text-center text-sm text-muted-foreground">
                   Sudah punya akun?{' '}
