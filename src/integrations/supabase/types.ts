@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      movements: {
+        Row: {
+          animation_url: string | null
+          child_instruction: string | null
+          created_at: string | null
+          description: string
+          difficulty_level: string
+          domain: string
+          duration_seconds: number
+          equipment: string | null
+          id: string
+          illustration: string | null
+          motor_goal: string | null
+          name: string
+          parent_instruction: string | null
+          safety_note: string | null
+          week_introduced: number | null
+        }
+        Insert: {
+          animation_url?: string | null
+          child_instruction?: string | null
+          created_at?: string | null
+          description: string
+          difficulty_level?: string
+          domain: string
+          duration_seconds?: number
+          equipment?: string | null
+          id?: string
+          illustration?: string | null
+          motor_goal?: string | null
+          name: string
+          parent_instruction?: string | null
+          safety_note?: string | null
+          week_introduced?: number | null
+        }
+        Update: {
+          animation_url?: string | null
+          child_instruction?: string | null
+          created_at?: string | null
+          description?: string
+          difficulty_level?: string
+          domain?: string
+          duration_seconds?: number
+          equipment?: string | null
+          id?: string
+          illustration?: string | null
+          motor_goal?: string | null
+          name?: string
+          parent_instruction?: string | null
+          safety_note?: string | null
+          week_introduced?: number | null
+        }
+        Relationships: []
+      }
       skill_assessments: {
         Row: {
           assessed_at: string
@@ -51,6 +105,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      training_sessions: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_progress: {
         Row: {
@@ -181,6 +259,22 @@ export type Database = {
       check_username_available: {
         Args: { username_input: string }
         Returns: boolean
+      }
+      check_weekly_session_limit: {
+        Args: { user_id_input: string }
+        Returns: boolean
+      }
+      complete_training_session: {
+        Args: { session_id_input: string }
+        Returns: undefined
+      }
+      get_weekly_sessions_remaining: {
+        Args: { user_id_input: string }
+        Returns: number
+      }
+      start_training_session: {
+        Args: { user_id_input: string }
+        Returns: string
       }
     }
     Enums: {
