@@ -35,8 +35,8 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
       return;
     }
 
-    setSuccessMessage('Akun berhasil dibuat! Silakan cek email untuk verifikasi, lalu masuk.');
-    setMode('login');
+    // Auto-confirm enabled: user is logged in immediately
+    onLogin();
   };
 
   const handleForgotPassword = async () => {

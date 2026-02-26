@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { UserData, ExerciseDomain, AVATARS, getExercisesForWeek } from '@/lib/workoutData';
+import { UserData, AVATARS } from '@/lib/workoutData';
 import { signOut } from '@/lib/authService';
 import { saveWorkoutSession, getWorkoutHistory, calculateStreak, saveProgressEntry, toggleResearchMode, updateCurriculumProgress } from '@/lib/progressService';
 import { getEarnedBadges, getNewlyEarnedBadges, Badge } from '@/lib/badgeData';
-import { generateSessionExercises, getCurriculumWeek } from '@/lib/curriculumData';
+import { getCurriculumWeek } from '@/lib/curriculumData';
+import { generateSessionMovements, Movement } from '@/lib/MovementService';
+import { getWeeklySessionsRemaining, startSession, completeSession, cancelSession } from '@/lib/SessionService';
 import { StatsCard } from './StatsCard';
-import { CategoryCard } from './CategoryCard';
 import { ParentGuideModal } from './ParentGuideModal';
 import { SessionRunner } from './SessionRunner';
 import { HistorySection } from './HistorySection';
@@ -18,9 +19,10 @@ import { ProgressReport } from './ProgressReport';
 import { CurriculumProgress } from './CurriculumProgress';
 import { AssessmentModule } from './AssessmentModule';
 import { ResearchDashboard } from './ResearchDashboard';
-import { LogOut, BookOpen, Users, BarChart3, ClipboardList, Database, ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
+import { LogOut, BookOpen, Users, BarChart3, ClipboardList, Database, ChevronRight, AlertCircle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/hooks/use-toast';
 
 interface DashboardProps {
   user: UserData;
@@ -30,7 +32,7 @@ interface DashboardProps {
 
 export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   const [showParentGuide, setShowParentGuide] = useState(false);
-  const [activeSession, setActiveSession] = useState<ReturnType<typeof generateSessionExercises> | null>(null);
+  const [activeSession, setActiveSession] = useState<Movement[] | null>(null);
   const [showEducation, setShowEducation] = useState(false);
   const [showProgressReport, setShowProgressReport] = useState(false);
   const [showAssessment, setShowAssessment] = useState(false);
@@ -40,9 +42,17 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   const [previousBadgeIds, setPreviousBadgeIds] = useState<string[]>(() =>
     getEarnedBadges(user).map(b => b.id)
   );
+  const [sessionsRemaining, setSessionsRemaining] = useState<number | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const { toast } = useToast();
 
   const avatar = AVATARS.find(a => a.id === user.avatar);
   const curriculumWeek = getCurriculumWeek(user.currentWeek);
+
+  // Load remaining sessions
+  useEffect(() => {
+    getWeeklySessionsRemaining(user.id).then(setSessionsRemaining);
+  }, [user.id, user.totalSessions]);
 
   useEffect(() => {
     const newlyEarned = getNewlyEarnedBadges(previousBadgeIds, user);
@@ -58,22 +68,53 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
     onLogout();
   };
 
-  const handleStartSession = () => {
-    const exercises = generateSessionExercises(user.currentWeek);
-    setActiveSession(exercises);
+  const handleStartSession = async () => {
+    setIsStarting(true);
+    try {
+      // Backend validates eligibility
+      await startSession(user.id);
+      const exercises = await generateSessionMovements(user.currentWeek);
+      setActiveSession(exercises);
+    } catch (err: any) {
+      if (err.message === 'WEEKLY_LIMIT') {
+        toast({
+          title: 'Batas sesi tercapai',
+          description: 'Kamu sudah menyelesaikan 3 sesi minggu ini. Coba lagi minggu depan!',
+          variant: 'destructive',
+        });
+        setSessionsRemaining(0);
+      } else if (err.message === 'ACTIVE_EXISTS') {
+        toast({
+          title: 'Sesi aktif',
+          description: 'Ada sesi yang masih berjalan. Silakan selesaikan dulu.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Gagal memulai sesi',
+          description: err.message,
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsStarting(false);
+    }
   };
 
-  const handleWorkoutComplete = async (exercises: string[], duration: number, domain: string) => {
+  const handleWorkoutComplete = async (exerciseIds: string[], duration: number, domain: string) => {
+    // Complete session in backend
+    await completeSession();
+
     const session = {
       date: new Date().toISOString().split('T')[0],
-      exercises,
+      exercises: exerciseIds,
       duration,
       completed: true,
     };
 
     await saveWorkoutSession(user.id, session);
 
-    for (const exerciseId of exercises) {
+    for (const exerciseId of exerciseIds) {
       await saveProgressEntry({
         user_id: user.id,
         username: user.username,
@@ -85,7 +126,6 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
       });
     }
 
-    // Auto-advance week after every 3 sessions in current week
     const history = await getWorkoutHistory(user.id);
     const streak = calculateStreak(history);
     const sessionsThisWeek = history.filter(s => {
@@ -111,6 +151,14 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
       currentWeek: newWeek,
     });
 
+    // Refresh remaining sessions
+    getWeeklySessionsRemaining(user.id).then(setSessionsRemaining);
+
+    setActiveSession(null);
+  };
+
+  const handleSessionClose = async () => {
+    await cancelSession();
     setActiveSession(null);
   };
 
@@ -128,12 +176,12 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
       <SessionRunner
         exercises={activeSession}
         onComplete={handleWorkoutComplete}
-        onClose={() => setActiveSession(null)}
+        onClose={handleSessionClose}
       />
     );
   }
 
-  const availableExercises = getExercisesForWeek(user.currentWeek);
+  const isBlocked = sessionsRemaining === 0;
 
   return (
     <div className="min-h-screen bg-gradient-hero">
@@ -175,12 +223,35 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
 
         {/* Start Session Button */}
         <section>
-          <Button onClick={handleStartSession} size="lg" className="w-full text-lg h-16 shadow-button animate-pulse-glow">
-            ▶️ Mulai Sesi Latihan ({availableExercises.length} gerakan tersedia)
-          </Button>
-          <p className="text-xs text-center text-muted-foreground mt-2">
-            4 gerakan • Maks 3 menit • Dipilih otomatis dari kurikulum
-          </p>
+          {isBlocked ? (
+            <div className="w-full p-4 rounded-xl border-2 border-destructive/30 bg-destructive/5 text-center">
+              <AlertCircle className="w-8 h-8 text-destructive mx-auto mb-2" />
+              <p className="text-sm font-bold text-destructive">Batas sesi minggu ini tercapai</p>
+              <p className="text-xs text-muted-foreground mt-1">Kamu sudah menyelesaikan 3 sesi. Coba lagi minggu depan!</p>
+            </div>
+          ) : (
+            <Button
+              onClick={handleStartSession}
+              size="lg"
+              disabled={isStarting || isBlocked}
+              className="w-full text-lg h-16 shadow-button animate-pulse-glow"
+            >
+              {isStarting ? 'Memulai...' : '▶️ Mulai Sesi Latihan'}
+            </Button>
+          )}
+          <div className="flex items-center justify-center gap-2 mt-2">
+            <p className="text-xs text-muted-foreground">
+              4 gerakan • Maks 3 menit
+            </p>
+            {sessionsRemaining !== null && (
+              <span className="text-xs font-medium text-primary">
+                • {sessionsRemaining}/3 sesi tersisa minggu ini
+              </span>
+            )}
+            {sessionsRemaining === null && (
+              <Skeleton className="h-4 w-24 inline-block" />
+            )}
+          </div>
         </section>
 
         {/* Quick Actions */}
