@@ -19,8 +19,12 @@ import { ProgressReport } from './ProgressReport';
 import { CurriculumProgress } from './CurriculumProgress';
 import { AssessmentModule } from './AssessmentModule';
 import { ResearchDashboard } from './ResearchDashboard';
+import { NotificationBell } from './NotificationBell';
+import { ReportHistory } from './ReportHistory';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LogOut, BookOpen, Users, BarChart3, ClipboardList, Database, ChevronRight, AlertCircle } from 'lucide-react';
+import { LogOut, BookOpen, Users, BarChart3, ClipboardList, Database, ChevronRight, AlertCircle, FileText } from 'lucide-react';
+import { generateReport } from '@/lib/ReportService';
+import { getActiveSessionId } from '@/lib/SessionService';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 
@@ -37,6 +41,8 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   const [showProgressReport, setShowProgressReport] = useState(false);
   const [showAssessment, setShowAssessment] = useState(false);
   const [showResearch, setShowResearch] = useState(false);
+  const [showReportHistory, setShowReportHistory] = useState(false);
+  const [reportRefreshKey, setReportRefreshKey] = useState(0);
   const [newBadges, setNewBadges] = useState<Badge[]>([]);
   const [showNewBadgeModal, setShowNewBadgeModal] = useState(false);
   const [previousBadgeIds, setPreviousBadgeIds] = useState<string[]>(() =>
@@ -102,6 +108,9 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   };
 
   const handleWorkoutComplete = async (exerciseIds: string[], duration: number, domain: string) => {
+    // Capture session ID before completing
+    const completedSessionId = getActiveSessionId();
+
     // Complete session in backend
     await completeSession();
 
@@ -154,6 +163,13 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
     // Refresh remaining sessions
     getWeeklySessionsRemaining(user.id).then(setSessionsRemaining);
 
+    // Generate session report (fire-and-forget with retry)
+    if (completedSessionId) {
+      generateReport(completedSessionId, user.id, user.username, exerciseIds, duration, domain)
+        .then(() => setReportRefreshKey(k => k + 1))
+        .catch(err => console.error('Report generation failed:', err));
+    }
+
     setActiveSession(null);
   };
 
@@ -171,6 +187,7 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   if (showProgressReport) return <ProgressReport user={user} onBack={() => setShowProgressReport(false)} />;
   if (showAssessment) return <AssessmentModule userId={user.id} onBack={() => setShowAssessment(false)} />;
   if (showResearch) return <ResearchDashboard user={user} onBack={() => setShowResearch(false)} />;
+  if (showReportHistory) return <ReportHistory userId={user.id} onBack={() => setShowReportHistory(false)} />;
   if (activeSession) {
     return (
       <SessionRunner
@@ -201,9 +218,12 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleLogout}>
-            <LogOut className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <NotificationBell userId={user.id} refreshKey={reportRefreshKey} />
+            <Button variant="ghost" size="icon" onClick={handleLogout}>
+              <LogOut className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -255,7 +275,7 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
         </section>
 
         {/* Quick Actions */}
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <section className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <Button variant="outline" onClick={() => setShowParentGuide(true)} className="flex-col h-auto py-3 gap-1">
             <Users className="w-5 h-5" />
             <span className="text-xs">Panduan</span>
@@ -271,6 +291,10 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
           <Button variant="outline" onClick={() => setShowProgressReport(true)} className="flex-col h-auto py-3 gap-1">
             <BarChart3 className="w-5 h-5" />
             <span className="text-xs">Laporan</span>
+          </Button>
+          <Button variant="outline" onClick={() => setShowReportHistory(true)} className="flex-col h-auto py-3 gap-1">
+            <FileText className="w-5 h-5" />
+            <span className="text-xs">Riwayat Sesi</span>
           </Button>
         </section>
 

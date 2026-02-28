@@ -68,6 +68,118 @@ export type Database = {
         }
         Relationships: []
       }
+      report_audit_log: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          report_id: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          report_id?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          report_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      report_notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          read: boolean | null
+          report_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          read?: boolean | null
+          report_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          read?: boolean | null
+          report_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_notifications_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "session_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_reports: {
+        Row: {
+          activity_score: number | null
+          child_name: string | null
+          completed_at: string | null
+          created_at: string | null
+          duration_minutes: number | null
+          exercises_summary: Json | null
+          id: string
+          session_date: string | null
+          session_id: string | null
+          started_at: string | null
+          user_id: string
+          verified: boolean | null
+        }
+        Insert: {
+          activity_score?: number | null
+          child_name?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          duration_minutes?: number | null
+          exercises_summary?: Json | null
+          id?: string
+          session_date?: string | null
+          session_id?: string | null
+          started_at?: string | null
+          user_id: string
+          verified?: boolean | null
+        }
+        Update: {
+          activity_score?: number | null
+          child_name?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          duration_minutes?: number | null
+          exercises_summary?: Json | null
+          id?: string
+          session_date?: string | null
+          session_id?: string | null
+          started_at?: string | null
+          user_id?: string
+          verified?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_reports_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       skill_assessments: {
         Row: {
           assessed_at: string
@@ -174,6 +286,24 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       users_profile: {
         Row: {
           age: number | null
@@ -268,9 +398,27 @@ export type Database = {
         Args: { session_id_input: string }
         Returns: undefined
       }
+      generate_session_report: {
+        Args: {
+          child_name_input: string
+          duration_input: number
+          exercises_input: Json
+          score_input: number
+          session_id_input: string
+          user_id_input: string
+        }
+        Returns: string
+      }
       get_weekly_sessions_remaining: {
         Args: { user_id_input: string }
         Returns: number
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
       }
       start_training_session: {
         Args: { user_id_input: string }
@@ -278,7 +426,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user" | "developer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -405,6 +553,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user", "developer"],
+    },
   },
 } as const
