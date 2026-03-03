@@ -21,8 +21,11 @@ import { AssessmentModule } from './AssessmentModule';
 import { ResearchDashboard } from './ResearchDashboard';
 import { NotificationBell } from './NotificationBell';
 import { ReportHistory } from './ReportHistory';
+import { AccessibilitySettings } from './AccessibilitySettings';
+import { SLBToggle } from './SLBToggle';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LogOut, BookOpen, Users, BarChart3, ClipboardList, Database, ChevronRight, AlertCircle, FileText } from 'lucide-react';
+import { LogOut, BookOpen, Users, BarChart3, ClipboardList, Database, ChevronRight, AlertCircle, FileText, Accessibility } from 'lucide-react';
+import { useSLB } from '@/contexts/SLBContext';
 import { generateReport } from '@/lib/ReportService';
 import { getActiveSessionId } from '@/lib/SessionService';
 import { Switch } from '@/components/ui/switch';
@@ -42,6 +45,7 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   const [showAssessment, setShowAssessment] = useState(false);
   const [showResearch, setShowResearch] = useState(false);
   const [showReportHistory, setShowReportHistory] = useState(false);
+  const [showAccessibility, setShowAccessibility] = useState(false);
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
   const [newBadges, setNewBadges] = useState<Badge[]>([]);
   const [showNewBadgeModal, setShowNewBadgeModal] = useState(false);
@@ -51,6 +55,7 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   const [sessionsRemaining, setSessionsRemaining] = useState<number | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const { toast } = useToast();
+  const { slbEnabled } = useSLB();
 
   const avatar = AVATARS.find(a => a.id === user.avatar);
   const curriculumWeek = getCurriculumWeek(user.currentWeek);
@@ -188,6 +193,7 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   if (showAssessment) return <AssessmentModule userId={user.id} onBack={() => setShowAssessment(false)} />;
   if (showResearch) return <ResearchDashboard user={user} onBack={() => setShowResearch(false)} />;
   if (showReportHistory) return <ReportHistory userId={user.id} onBack={() => setShowReportHistory(false)} />;
+  if (showAccessibility) return <AccessibilitySettings onBack={() => setShowAccessibility(false)} />;
   if (activeSession) {
     return (
       <SessionRunner
@@ -219,8 +225,9 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <SLBToggle />
             <NotificationBell userId={user.id} refreshKey={reportRefreshKey} />
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
+            <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Keluar">
               <LogOut className="w-5 h-5" />
             </Button>
           </div>
@@ -275,7 +282,7 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
         </section>
 
         {/* Quick Actions */}
-        <section className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <section className={`grid ${slbEnabled ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3'} gap-3`}>
           <Button variant="outline" onClick={() => setShowParentGuide(true)} className="flex-col h-auto py-3 gap-1">
             <Users className="w-5 h-5" />
             <span className="text-xs">Panduan</span>
@@ -294,7 +301,11 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
           </Button>
           <Button variant="outline" onClick={() => setShowReportHistory(true)} className="flex-col h-auto py-3 gap-1">
             <FileText className="w-5 h-5" />
-            <span className="text-xs">Riwayat Sesi</span>
+            <span className="text-xs">Riwayat</span>
+          </Button>
+          <Button variant="outline" onClick={() => setShowAccessibility(true)} className="flex-col h-auto py-3 gap-1">
+            <Accessibility className="w-5 h-5" />
+            <span className="text-xs">Aksesibilitas</span>
           </Button>
         </section>
 

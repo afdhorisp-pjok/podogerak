@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AvatarSelector } from './AvatarSelector';
+import { SLBToggle } from './SLBToggle';
 import { signUp, signIn, resetPassword, checkUsernameAvailable } from '@/lib/authService';
 
 interface LoginFormProps {
@@ -78,6 +79,9 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
           <p className="text-muted-foreground text-lg">
             Yuk berolahraga bersama! 💪
           </p>
+          <div className="mt-4 flex justify-center">
+            <SLBToggle />
+          </div>
         </div>
 
         <Card className="animate-scale-in shadow-card border-0">
