@@ -4,7 +4,11 @@ import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Movement, getDomainLabel } from '@/lib/MovementService';
 import { audioController } from '@/lib/AudioController';
+import { narrationService } from '@/lib/NarrationService';
+import { useSLB } from '@/contexts/SLBContext';
 import { TrainingPlayer } from './TrainingPlayer';
+import { PictogramSteps } from './PictogramSteps';
+import { SLBSessionControls } from './SLBSessionControls';
 import { Play, Pause, SkipForward, X, Volume2, VolumeX, CheckCircle, Info, Music } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -24,6 +28,7 @@ export const SessionRunner = ({ exercises, onComplete, onClose }: SessionRunnerP
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [musicMuted, setMusicMuted] = useState(audioController.isMuted);
   const [startTime] = useState(Date.now());
+  const { slbEnabled, narrationEnabled, speechRate } = useSLB();
 
   const currentExercise = exercises[currentIndex];
   const progress = ((currentIndex) / exercises.length) * 100;
@@ -56,12 +61,21 @@ export const SessionRunner = ({ exercises, onComplete, onClose }: SessionRunnerP
   const startExercise = () => {
     setPhase('countdown');
     setTimeLeft(3);
+    if (slbEnabled && narrationEnabled) {
+      narrationService.speak('3... 2... 1... Mulai!', speechRate);
+    }
   };
 
   const handleExerciseComplete = () => {
+    if (slbEnabled && narrationEnabled) {
+      narrationService.speak('Bagus! Gerakan selesai', speechRate);
+    }
     if (currentIndex < exercises.length - 1) {
       setPhase('exercise-complete');
     } else {
+      if (slbEnabled && narrationEnabled) {
+        narrationService.speak('Sesi selesai! Hebat sekali!', speechRate);
+      }
       setPhase('session-complete');
     }
   };
@@ -79,6 +93,7 @@ export const SessionRunner = ({ exercises, onComplete, onClose }: SessionRunnerP
 
   const handleClose = () => {
     audioController.stop();
+    narrationService.stop();
     onClose();
   };
 
@@ -112,6 +127,19 @@ export const SessionRunner = ({ exercises, onComplete, onClose }: SessionRunnerP
 
     return () => clearInterval(timer);
   }, [isPaused, phase, currentExercise, playBeep]);
+
+  // Auto-narrate on phase changes (SLB mode)
+  useEffect(() => {
+    if (phase === 'parent-prep' && slbEnabled && narrationEnabled) {
+      narrationService.speak(
+        `${currentExercise.name}. ${currentExercise.parent_instruction || ''}`,
+        speechRate
+      );
+    }
+    if (phase === 'exercise' && slbEnabled && narrationEnabled) {
+      narrationService.speak(currentExercise.child_instruction || '', speechRate);
+    }
+  }, [phase, currentIndex, slbEnabled, narrationEnabled]);
 
   // Header bar (shared across phases)
   const HeaderBar = () => (
@@ -188,17 +216,23 @@ export const SessionRunner = ({ exercises, onComplete, onClose }: SessionRunnerP
             name={currentExercise.name}
             className="mb-4"
           />
-          <h2 className="text-2xl font-fredoka font-bold text-foreground mb-2 text-center">{currentExercise.name}</h2>
+          <h2 className="text-2xl font-fredoka font-bold text-foreground mb-2 text-center" aria-live="polite">{currentExercise.name}</h2>
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary mb-4">
             {getDomainLabel(currentExercise.domain)} • {currentExercise.duration_seconds} detik
           </span>
+
+          {slbEnabled && currentExercise.child_instruction && (
+            <div className="w-full max-w-md mb-4">
+              <PictogramSteps instruction={currentExercise.child_instruction} currentStep={0} />
+            </div>
+          )}
 
           <Card className="w-full max-w-md p-4 mb-4 border-2 border-primary/20 bg-primary/5">
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-sm font-bold text-foreground mb-1">Instruksi Orang Tua:</p>
-                <p className="text-sm text-muted-foreground">{currentExercise.parent_instruction}</p>
+                <p className="text-sm text-muted-foreground" aria-live="polite">{currentExercise.parent_instruction}</p>
               </div>
             </div>
           </Card>
@@ -220,11 +254,27 @@ export const SessionRunner = ({ exercises, onComplete, onClose }: SessionRunnerP
           )}
         </div>
 
-        <div className="p-6 border-t bg-card">
-          <Button size="lg" onClick={startExercise} className="w-full text-lg">
-            <Play className="w-5 h-5" /> Mulai Gerakan
-          </Button>
-        </div>
+        {slbEnabled ? (
+          <SLBSessionControls
+            onNext={startExercise}
+            onDone={startExercise}
+            onTeacherOverride={() => {
+              if (currentIndex < exercises.length - 1) {
+                setCurrentIndex(prev => prev + 1);
+                setPhase('parent-prep');
+              } else {
+                setPhase('session-complete');
+              }
+            }}
+            isLastExercise={false}
+          />
+        ) : (
+          <div className="p-6 border-t bg-card">
+            <Button size="lg" onClick={startExercise} className="w-full text-lg">
+              <Play className="w-5 h-5" /> Mulai Gerakan
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -265,24 +315,47 @@ export const SessionRunner = ({ exercises, onComplete, onClose }: SessionRunnerP
         </div>
       </div>
 
-      <div className="p-6 border-t bg-card">
-        <div className="flex justify-center gap-4">
-          <Button variant="outline" size="lg" onClick={() => {
+      {slbEnabled ? (
+        <SLBSessionControls
+          onNext={() => {
             if (currentIndex < exercises.length - 1) {
               setCurrentIndex(prev => prev + 1);
               setPhase('parent-prep');
             } else {
               setPhase('session-complete');
             }
-          }} className="w-32">
-            <SkipForward className="w-5 h-5" /> Lewati
-          </Button>
-          <Button size="lg" onClick={() => setIsPaused(!isPaused)} className="w-40">
-            {isPaused ? <Play className="w-6 h-6" /> : <Pause className="w-6 h-6" />}
-            {isPaused ? 'Lanjut' : 'Jeda'}
-          </Button>
+          }}
+          onDone={handleSessionComplete}
+          onTeacherOverride={() => {
+            if (currentIndex < exercises.length - 1) {
+              setCurrentIndex(prev => prev + 1);
+              setPhase('parent-prep');
+            } else {
+              setPhase('session-complete');
+            }
+          }}
+          isLastExercise={currentIndex >= exercises.length - 1}
+        />
+      ) : (
+        <div className="p-6 border-t bg-card">
+          <div className="flex justify-center gap-4">
+            <Button variant="outline" size="lg" onClick={() => {
+              if (currentIndex < exercises.length - 1) {
+                setCurrentIndex(prev => prev + 1);
+                setPhase('parent-prep');
+              } else {
+                setPhase('session-complete');
+              }
+            }} className="w-32">
+              <SkipForward className="w-5 h-5" /> Lewati
+            </Button>
+            <Button size="lg" onClick={() => setIsPaused(!isPaused)} className="w-40">
+              {isPaused ? <Play className="w-6 h-6" /> : <Pause className="w-6 h-6" />}
+              {isPaused ? 'Lanjut' : 'Jeda'}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
