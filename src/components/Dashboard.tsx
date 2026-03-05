@@ -49,6 +49,9 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   const [showResearch, setShowResearch] = useState(false);
   const [showReportHistory, setShowReportHistory] = useState(false);
   const [showAccessibility, setShowAccessibility] = useState(false);
+  const [showDataRetention, setShowDataRetention] = useState(false);
+  const [showChildAssent, setShowChildAssent] = useState(false);
+  const [childAssented, setChildAssented] = useState(false);
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
   const [newBadges, setNewBadges] = useState<Badge[]>([]);
   const [showNewBadgeModal, setShowNewBadgeModal] = useState(false);
