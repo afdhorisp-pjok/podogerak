@@ -327,6 +327,10 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
             <Accessibility className="w-5 h-5" />
             <span className="text-xs">Aksesibilitas</span>
           </Button>
+          <Button variant="outline" onClick={() => setShowDataRetention(true)} className="flex-col h-auto py-3 gap-1">
+            <Shield className="w-5 h-5" />
+            <span className="text-xs">Persetujuan</span>
+          </Button>
         </section>
 
         {/* Research Mode Toggle */}
