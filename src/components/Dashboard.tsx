@@ -23,13 +23,16 @@ import { NotificationBell } from './NotificationBell';
 import { ReportHistory } from './ReportHistory';
 import { AccessibilitySettings } from './AccessibilitySettings';
 import { SLBToggle } from './SLBToggle';
+import { DataRetentionSettings } from './DataRetentionSettings';
+import { ChildAssent } from './ChildAssent';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LogOut, BookOpen, Users, BarChart3, ClipboardList, Database, ChevronRight, AlertCircle, FileText, Accessibility } from 'lucide-react';
+import { LogOut, BookOpen, Users, BarChart3, ClipboardList, Database, ChevronRight, AlertCircle, FileText, Accessibility, Shield } from 'lucide-react';
 import { useSLB } from '@/contexts/SLBContext';
 import { generateReport } from '@/lib/ReportService';
 import { getActiveSessionId } from '@/lib/SessionService';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { logConsentAudit } from '@/lib/ConsentService';
 
 interface DashboardProps {
   user: UserData;
