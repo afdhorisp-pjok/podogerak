@@ -23,13 +23,16 @@ import { NotificationBell } from './NotificationBell';
 import { ReportHistory } from './ReportHistory';
 import { AccessibilitySettings } from './AccessibilitySettings';
 import { SLBToggle } from './SLBToggle';
+import { DataRetentionSettings } from './DataRetentionSettings';
+import { ChildAssent } from './ChildAssent';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LogOut, BookOpen, Users, BarChart3, ClipboardList, Database, ChevronRight, AlertCircle, FileText, Accessibility } from 'lucide-react';
+import { LogOut, BookOpen, Users, BarChart3, ClipboardList, Database, ChevronRight, AlertCircle, FileText, Accessibility, Shield } from 'lucide-react';
 import { useSLB } from '@/contexts/SLBContext';
 import { generateReport } from '@/lib/ReportService';
 import { getActiveSessionId } from '@/lib/SessionService';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { logConsentAudit } from '@/lib/ConsentService';
 
 interface DashboardProps {
   user: UserData;
@@ -46,6 +49,9 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   const [showResearch, setShowResearch] = useState(false);
   const [showReportHistory, setShowReportHistory] = useState(false);
   const [showAccessibility, setShowAccessibility] = useState(false);
+  const [showDataRetention, setShowDataRetention] = useState(false);
+  const [showChildAssent, setShowChildAssent] = useState(false);
+  const [childAssented, setChildAssented] = useState(false);
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
   const [newBadges, setNewBadges] = useState<Badge[]>([]);
   const [showNewBadgeModal, setShowNewBadgeModal] = useState(false);
@@ -80,6 +86,11 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   };
 
   const handleStartSession = async () => {
+    // Check child assent before first session
+    if (!childAssented && user.totalSessions === 0) {
+      setShowChildAssent(true);
+      return;
+    }
     setIsStarting(true);
     try {
       // Backend validates eligibility
@@ -192,6 +203,15 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   if (showProgressReport) return <ProgressReport user={user} onBack={() => setShowProgressReport(false)} />;
   if (showAssessment) return <AssessmentModule userId={user.id} onBack={() => setShowAssessment(false)} />;
   if (showResearch) return <ResearchDashboard user={user} onBack={() => setShowResearch(false)} />;
+  if (showDataRetention) return <DataRetentionSettings userId={user.id} childName={user.username} onBack={() => setShowDataRetention(false)} />;
+  if (showChildAssent) return (
+    <ChildAssent
+      userId={user.id}
+      childName={user.username}
+      onAssent={() => { setChildAssented(true); setShowChildAssent(false); }}
+      onDecline={() => setShowChildAssent(false)}
+    />
+  );
   if (showReportHistory) return <ReportHistory userId={user.id} onBack={() => setShowReportHistory(false)} />;
   if (showAccessibility) return <AccessibilitySettings onBack={() => setShowAccessibility(false)} />;
   if (activeSession) {
@@ -306,6 +326,10 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
           <Button variant="outline" onClick={() => setShowAccessibility(true)} className="flex-col h-auto py-3 gap-1">
             <Accessibility className="w-5 h-5" />
             <span className="text-xs">Aksesibilitas</span>
+          </Button>
+          <Button variant="outline" onClick={() => setShowDataRetention(true)} className="flex-col h-auto py-3 gap-1">
+            <Shield className="w-5 h-5" />
+            <span className="text-xs">Persetujuan</span>
           </Button>
         </section>
 

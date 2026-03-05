@@ -5,10 +5,13 @@ import { UserData } from '@/lib/workoutData';
 import { supabase } from '@/integrations/supabase/client';
 import { getUserProfile } from '@/lib/authService';
 import { getWorkoutHistory, calculateStreak } from '@/lib/progressService';
+import { getConsentStatus } from '@/lib/ConsentService';
+import { ParentConsentModal } from '@/components/ParentConsentModal';
 
 const Index = () => {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [needsConsent, setNeedsConsent] = useState(false);
 
   const loadUserData = async (userId: string) => {
     const profile = await getUserProfile(userId);
@@ -36,17 +39,24 @@ const Index = () => {
     return userData;
   };
 
+  const checkAndSetUser = async (userId: string) => {
+    const userData = await loadUserData(userId);
+    if (!userData) return;
+
+    const hasConsent = await getConsentStatus(userId);
+    setUser(userData);
+    setNeedsConsent(!hasConsent);
+    setIsLoading(false);
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
-          setTimeout(async () => {
-            const userData = await loadUserData(session.user.id);
-            setUser(userData);
-            setIsLoading(false);
-          }, 0);
+          setTimeout(() => checkAndSetUser(session.user.id), 0);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
+          setNeedsConsent(false);
           setIsLoading(false);
         }
       }
@@ -54,10 +64,10 @@ const Index = () => {
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        const userData = await loadUserData(session.user.id);
-        setUser(userData);
+        await checkAndSetUser(session.user.id);
+      } else {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -66,8 +76,7 @@ const Index = () => {
   const handleLogin = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
-      const userData = await loadUserData(session.user.id);
-      setUser(userData);
+      await checkAndSetUser(session.user.id);
     }
   };
 
@@ -84,6 +93,24 @@ const Index = () => {
 
   if (!user) {
     return <LoginForm onLogin={handleLogin} />;
+  }
+
+  // Show consent modal if not yet consented
+  if (needsConsent) {
+    return (
+      <>
+        <Dashboard
+          user={user}
+          onLogout={() => setUser(null)}
+          onUserUpdate={(updatedUser) => setUser(updatedUser)}
+        />
+        <ParentConsentModal
+          open={true}
+          userId={user.id}
+          onConsented={() => setNeedsConsent(false)}
+        />
+      </>
+    );
   }
 
   return (

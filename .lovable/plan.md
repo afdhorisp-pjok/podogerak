@@ -1,152 +1,171 @@
 
 
-# Research Consent Workflow
+# SLB Accessibility Mode
 
 ## Overview
 
-Add a research consent system with three roles (teacher, parent, researcher), a parent consent modal during onboarding, child assent screen, data retention controls, and a consent audit log. All changes are additive modules.
+Add a dedicated "Mode SLB" (Siswa Luar Biasa / Special Needs Student) to the app. When enabled, the entire UI adapts for users with motor, cognitive, or sensory challenges: larger touch targets, high-contrast colors, simplified text, audio narration, pictogram-based exercise steps, and alternate input controls.
+
+All changes are additive -- existing components are wrapped with conditional styling via a React context, not rewritten.
 
 ---
 
-## Database Changes (Migration)
+## Architecture
 
-### 1. Extend `app_role` enum
-Add three new values: `'teacher'`, `'parent'`, `'researcher'`.
+### SLB Context Provider
 
-```sql
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'teacher';
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'parent';
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'researcher';
-```
+Create `src/contexts/SLBContext.tsx` -- a React context holding all accessibility preferences:
 
-### 2. New table: `consent_records`
-Stores hashed consent data -- no PII or uploaded documents.
+- `slbEnabled` (boolean) -- master toggle
+- `textScale` (number, 1.0-2.0) -- font size multiplier
+- `speechRate` (number, 0.5-2.0) -- TTS speech rate
+- `highContrast` (boolean) -- high-contrast theme
+- `reduceMotion` (boolean) -- disable animations
+- `narrationEnabled` (boolean) -- auto-play audio narration
 
-```text
-consent_records
-- id (uuid PK)
-- user_id (uuid, NOT NULL) -- parent who gave consent
-- child_user_id (uuid) -- child account the consent is for
-- consent_version (text, NOT NULL) -- e.g. "v1.0"
-- consent_hash (text, NOT NULL) -- SHA-256 of consent payload
-- consent_audio (boolean, default false)
-- consent_sensor_data (boolean, default false)
-- consent_video_upload (boolean, default false)
-- granted_at (timestamptz, default now())
-- revoked_at (timestamptz, nullable)
-- created_at (timestamptz, default now())
-```
+All preferences persisted in `localStorage` under key `podogerak_slb_settings`.
 
-RLS: Users can read/insert their own records. Researchers can read all (via `has_role`).
-
-### 3. New table: `consent_audit_log`
-Tracks all consent-related actions.
-
-```text
-consent_audit_log
-- id (uuid PK)
-- user_id (uuid, NOT NULL)
-- action (text) -- 'grant', 'revoke', 'view', 'erase_pii'
-- consent_record_id (uuid, nullable)
-- metadata (jsonb, nullable)
-- created_at (timestamptz, default now())
-```
-
-RLS: Insert for authenticated. Select for researcher/developer roles only.
-
-### 4. New table: `data_retention_settings`
-Per-child retention preferences.
-
-```text
-data_retention_settings
-- id (uuid PK)
-- user_id (uuid, NOT NULL) -- parent
-- child_user_id (uuid)
-- retention_days (integer, default 365)
-- updated_at (timestamptz, default now())
-```
-
-RLS: Users manage their own.
-
-### 5. RPC: `erase_child_pii(child_user_id_input uuid)`
-Security definer function that:
-- Nullifies PII in `users_profile` (username -> 'anon_' + short_id, email -> null, age -> null)
-- Keeps de-identified IDs in `training_sessions`, `session_reports`, `user_progress`
-- Logs action in `consent_audit_log`
-- Does NOT delete the user account -- preserves anonymized research data
-
-### 6. Assign default role on signup
-Add to `handle_new_user` trigger or create a new trigger: insert `'parent'` role into `user_roles` for every new signup (default assumption: adults registering children).
+The provider wraps the app in `App.tsx` and applies a CSS class `slb-mode` to `<body>` when enabled (plus `slb-high-contrast` and `slb-reduce-motion` as needed).
 
 ---
 
-## Frontend Changes
+## CSS Layer: SLB Overrides
 
-### New file: `src/lib/ConsentService.ts`
-- `createConsentRecord(userId, childUserId, consents, version)` -- hashes payload, inserts record + audit
-- `revokeConsent(consentId)` -- sets `revoked_at`, logs audit
-- `getConsentStatus(childUserId)` -- checks if valid consent exists
-- `eraseChildPII(childUserId)` -- calls RPC
-- `updateRetention(childUserId, days)` -- updates retention settings
-- Hash function uses `crypto.subtle.digest('SHA-256', ...)` (browser native)
+Add a dedicated section in `src/index.css`:
 
-### New file: `src/components/ParentConsentModal.tsx`
-Shown after registration (step 3, after avatar selection):
-- Embedded consent text (scrollable, styled as a document -- serves as PDF template)
-- Three checkboxes: Audio recording, Sensor data, Video upload
-- "Saya menyetujui" (I agree) button -- disabled until scrolled to bottom
-- Stores hashed consent record, never stores uploaded docs
-- "Unduh PDF" button to download consent text as PDF (using browser print/save)
-
-### New file: `src/components/ChildAssent.tsx`
-A 30-second visual/audio screen shown to the child before first session:
-- Large friendly illustration with simple text: "Kita akan bermain dan belajar gerak! Mau ikut?" (We'll play and learn movement! Want to join?)
-- Two large buttons: "Mau! 🎉" (Yes!) and "Tidak sekarang" (Not now)
-- Uses `NarrationService` to auto-read the assent text
-- Records assent in `consent_audit_log`
-
-### New file: `src/components/DataRetentionSettings.tsx`
-Accessible from Dashboard settings:
-- Slider for retention period (30-730 days)
-- Current retention display
-- "Hapus Data Anak Saya" (Erase My Child's Data) button with confirmation dialog
-- Shows what will be erased vs kept (PII removed, anonymized IDs retained)
-
-### New file: `public/consent-template.md`
-Markdown consent document template covering:
-- Research purpose, data collected, rights, contact info
-- Version number for tracking
-
-### Modify: `src/components/LoginForm.tsx`
-After successful registration, show `<ParentConsentModal>` before proceeding to dashboard. The modal is mandatory -- user cannot skip.
-
-### Modify: `src/components/Dashboard.tsx`
-- Add "Persetujuan & Data" (Consent & Data) button in quick actions
-- Opens `<DataRetentionSettings>` view
-- Before first session, check if child assent was given; if not, show `<ChildAssent>`
-
-### Modify: `src/pages/Index.tsx`
-Add consent check state: after login, verify consent exists. If not, show consent modal before dashboard.
+- `.slb-mode` class on body applies:
+  - `font-size` scaled by the `textScale` value (via CSS custom property `--slb-text-scale`)
+  - Single-column layout: max-width constrained, grid columns forced to 1
+  - All buttons get `min-height: 44px; min-width: 44px`
+  - Focus indicators made thicker and more visible (3px outline)
+- `.slb-high-contrast` applies:
+  - Background: pure white (`#fff`) / dark mode: pure black (`#000`)
+  - Text: pure black / white
+  - Borders: solid 2px black/white
+  - Primary buttons: high-saturation orange with thick border
+- `.slb-reduce-motion` applies:
+  - `animation: none !important; transition: none !important` via `prefers-reduced-motion` override
 
 ---
 
-## Role Enforcement
+## New Files
 
-The existing `user_roles` table + `has_role()` function already supports this. New roles (teacher, parent, researcher) are added to the enum. RLS policies on consent tables use `has_role()` for researcher access. No changes to existing table policies.
+### 1. `src/contexts/SLBContext.tsx`
+React context + provider with all SLB settings, localStorage persistence, and body class management.
+
+### 2. `src/components/SLBToggle.tsx`
+A simple toggle button/switch labeled "Mode: SLB" with an accessibility icon. Used on LoginForm and Dashboard header.
+
+### 3. `src/components/AccessibilitySettings.tsx`
+Full settings page with:
+- Text size slider (1x to 2x, using Radix Slider)
+- Speech rate slider (0.5x to 2x)
+- High contrast toggle (Switch)
+- Reduce motion toggle (Switch)
+- Narration auto-play toggle (Switch)
+- Preview area showing sample text at current scale
+- "Reset ke Default" button
+
+### 4. `src/components/PictogramSteps.tsx`
+For each exercise during a session, display a horizontal scrollable row of pictogram cards showing the exercise steps. Each card has:
+- A large emoji/icon (the exercise illustration)
+- A short 1-2 word label
+- Current step highlighted with a colored border
+- Cards are min 80px wide for easy touch
+
+Data derived from the exercise's `child_instruction` split into simple steps.
+
+### 5. `src/lib/NarrationService.ts`
+Uses the browser's built-in `SpeechSynthesis` API (no external API needed):
+- `speak(text, rate)` -- queues text for narration
+- `stop()` -- cancels current speech
+- `isSpeaking()` -- check status
+- Respects `narrationEnabled` and `speechRate` from SLB context
+- Auto-narrates: exercise name, child instruction, countdown numbers, completion messages
+
+### 6. `src/components/SLBSessionControls.tsx`
+Alternate input controls shown during SessionRunner when SLB mode is active:
+- Two large buttons at the bottom: "Lanjut" (Next/OK) and "Selesai" (Done) -- min 64px height, full-width stacked
+- A "Guru Override" (Teacher Override) button -- distinct color (secondary), allows teacher to skip/complete exercise
+- Replaces the default Pause/Skip controls in SLB mode
+
+### 7. `public/a11y-checklist.md`
+Markdown file documenting:
+- Keyboard/tab order for each screen
+- ARIA attributes used (`role`, `aria-label`, `aria-live`, `aria-current`)
+- Focus management strategy
+- Screen reader compatibility notes
+- Touch target compliance (WCAG 2.1 AA: 44x44px minimum)
 
 ---
 
-## File Summary
+## Modifications to Existing Files
 
-| File | Action |
-|------|--------|
-| Migration SQL | Extend enum, 3 new tables, 1 RPC, trigger update |
-| `src/lib/ConsentService.ts` | New: consent logic + hashing |
-| `src/components/ParentConsentModal.tsx` | New: consent form |
-| `src/components/ChildAssent.tsx` | New: child assent screen |
-| `src/components/DataRetentionSettings.tsx` | New: retention + erase UI |
-| `public/consent-template.md` | New: consent PDF template |
-| `src/components/LoginForm.tsx` | Add consent modal after signup |
-| `src/components/Dashboard.tsx` | Add consent button + assent check |
-| `src/pages/Index.tsx` | Add consent status check |
+### `src/App.tsx`
+Wrap the app with `<SLBProvider>` around the existing tree.
+
+### `src/index.css`
+Add the `.slb-mode`, `.slb-high-contrast`, `.slb-reduce-motion` CSS classes at the end of the file.
+
+### `src/components/LoginForm.tsx`
+Add `<SLBToggle />` in the header area (below the PodoGerak logo). When SLB mode is active, form inputs and buttons get larger sizing automatically via CSS.
+
+### `src/components/Dashboard.tsx`
+- Add `<SLBToggle />` next to the notification bell in the header
+- Add "Aksesibilitas" button in the quick actions grid, opening `<AccessibilitySettings />`
+- When SLB mode is on, the quick actions grid becomes single-column with larger buttons
+- Button labels simplified to single verbs: "Panduan", "Edukasi", "Nilai", "Laporan", "Riwayat" (mostly already short)
+
+### `src/components/SessionRunner.tsx`
+- Import and use `useSLB()` context
+- When SLB is enabled:
+  - Show `<PictogramSteps>` component with current exercise steps
+  - Show `<SLBSessionControls>` instead of default Pause/Skip buttons
+  - Auto-narrate exercise name and child instruction via `NarrationService`
+  - Narrate countdown numbers ("3... 2... 1... Mulai!")
+  - Narrate completion messages
+- All text uses `aria-live="polite"` for screen reader announcements
+
+---
+
+## Audio Narration Flow
+
+Uses browser-native `window.speechSynthesis` (Web Speech API) -- no API key required, works offline:
+
+1. **Parent Prep phase**: Narrate exercise name + parent instruction
+2. **Countdown phase**: Narrate "3... 2... 1... Mulai!"
+3. **Exercise phase**: Narrate child instruction
+4. **Exercise Complete**: Narrate "Bagus! Gerakan selesai"
+5. **Session Complete**: Narrate "Sesi selesai! Hebat sekali!"
+
+Mute button already exists in SessionRunner header -- it will also control narration when SLB is active.
+
+---
+
+## ARIA and Keyboard Accessibility
+
+- All interactive elements have `aria-label` attributes
+- Exercise timer uses `aria-live="assertive"` for countdown
+- Progress indicators use `role="progressbar"` with `aria-valuenow`
+- Tab order follows visual layout (top-to-bottom, left-to-right)
+- Focus trapped within modals/session screens
+- Skip-to-content link at top of page when SLB is active
+- All buttons have visible focus indicators (3px ring)
+
+---
+
+## Implementation Order
+
+1. Create `SLBContext.tsx` + provider
+2. Create `NarrationService.ts`
+3. Add SLB CSS overrides to `index.css`
+4. Create `SLBToggle.tsx`
+5. Create `AccessibilitySettings.tsx`
+6. Create `PictogramSteps.tsx`
+7. Create `SLBSessionControls.tsx`
+8. Update `App.tsx` (wrap with SLBProvider)
+9. Update `LoginForm.tsx` (add SLB toggle)
+10. Update `Dashboard.tsx` (add toggle + accessibility button)
+11. Update `SessionRunner.tsx` (narration + pictograms + alternate controls)
+12. Create `public/a11y-checklist.md`
 
