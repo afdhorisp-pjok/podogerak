@@ -116,12 +116,12 @@ export const eraseChildPII = async (childUserId: string): Promise<boolean> => {
 };
 
 export const getRetentionSettings = async (userId: string) => {
-  const { data } = await supabase
+  const { data } = await (supabase
     .from('data_retention_settings' as any)
     .select('*')
     .eq('user_id', userId)
     .limit(1)
-    .maybeSingle();
+    .maybeSingle() as any);
 
   return data as { id: string; retention_days: number; child_user_id: string } | null;
 };
