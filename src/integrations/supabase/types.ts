@@ -14,6 +14,107 @@ export type Database = {
   }
   public: {
     Tables: {
+      consent_audit_log: {
+        Row: {
+          action: string
+          consent_record_id: string | null
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          consent_record_id?: string | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          consent_record_id?: string | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_audit_log_consent_record_id_fkey"
+            columns: ["consent_record_id"]
+            isOneToOne: false
+            referencedRelation: "consent_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consent_records: {
+        Row: {
+          child_user_id: string | null
+          consent_audio: boolean | null
+          consent_hash: string
+          consent_sensor_data: boolean | null
+          consent_version: string
+          consent_video_upload: boolean | null
+          created_at: string | null
+          granted_at: string | null
+          id: string
+          revoked_at: string | null
+          user_id: string
+        }
+        Insert: {
+          child_user_id?: string | null
+          consent_audio?: boolean | null
+          consent_hash: string
+          consent_sensor_data?: boolean | null
+          consent_version?: string
+          consent_video_upload?: boolean | null
+          created_at?: string | null
+          granted_at?: string | null
+          id?: string
+          revoked_at?: string | null
+          user_id: string
+        }
+        Update: {
+          child_user_id?: string | null
+          consent_audio?: boolean | null
+          consent_hash?: string
+          consent_sensor_data?: boolean | null
+          consent_version?: string
+          consent_video_upload?: boolean | null
+          created_at?: string | null
+          granted_at?: string | null
+          id?: string
+          revoked_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      data_retention_settings: {
+        Row: {
+          child_user_id: string | null
+          id: string
+          retention_days: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          child_user_id?: string | null
+          id?: string
+          retention_days?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          child_user_id?: string | null
+          id?: string
+          retention_days?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       movements: {
         Row: {
           animation_url: string | null
@@ -396,6 +497,10 @@ export type Database = {
       }
       complete_training_session: {
         Args: { session_id_input: string }
+        Returns: undefined
+      }
+      erase_child_pii: {
+        Args: { child_user_id_input: string }
         Returns: undefined
       }
       generate_session_report: {
