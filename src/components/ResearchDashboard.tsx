@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserData, EXERCISES, getDomainLabel, ALL_DOMAINS, ExerciseDomain } from '@/lib/workoutData';
 import { getSkillAssessments } from '@/lib/progressService';
 import { getDomainExposure, getSummaryStats } from '@/lib/progressUtils';
-import { ArrowLeft, Database, BarChart3, Activity, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Database, BarChart3, Activity, TrendingUp, FlaskConical } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ExperimentToolkit } from '@/components/ExperimentToolkit';
 
 interface ResearchDashboardProps {
   user: UserData;
@@ -13,6 +14,7 @@ interface ResearchDashboardProps {
 }
 
 export const ResearchDashboard = ({ user, onBack }: ResearchDashboardProps) => {
+  const [showToolkit, setShowToolkit] = useState(false);
   const [assessments, setAssessments] = useState<any[]>([]);
 
   useEffect(() => {
