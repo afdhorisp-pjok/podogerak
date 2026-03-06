@@ -1,171 +1,136 @@
 
 
-# SLB Accessibility Mode
+# Experiment Toolkit Module
 
 ## Overview
 
-Add a dedicated "Mode SLB" (Siswa Luar Biasa / Special Needs Student) to the app. When enabled, the entire UI adapts for users with motor, cognitive, or sensory challenges: larger touch targets, high-contrast colors, simplified text, audio narration, pictogram-based exercise steps, and alternate input controls.
-
-All changes are additive -- existing components are wrapped with conditional styling via a React context, not rewritten.
+Add a complete experiment management system for researchers: create experiments with arms, randomize participants with stratification, log sessions, and export data as CSV. Accessible from the Research Dashboard when user has the `researcher` role.
 
 ---
 
-## Architecture
+## Database Changes (1 migration)
 
-### SLB Context Provider
+### New tables
 
-Create `src/contexts/SLBContext.tsx` -- a React context holding all accessibility preferences:
+**`experiments`** — experiment definitions (researcher-owned)
+- `id` uuid PK
+- `researcher_id` uuid NOT NULL (creator)
+- `name` text NOT NULL
+- `description` text
+- `arms` jsonb NOT NULL — e.g. `["control","intervention_a","intervention_b"]`
+- `strata` jsonb — e.g. `["school_a/class_1","school_a/class_2"]`
+- `seed` integer NOT NULL — deterministic randomization seed
+- `status` text DEFAULT 'active' — active/archived
+- `created_at` timestamptz DEFAULT now()
 
-- `slbEnabled` (boolean) -- master toggle
-- `textScale` (number, 1.0-2.0) -- font size multiplier
-- `speechRate` (number, 0.5-2.0) -- TTS speech rate
-- `highContrast` (boolean) -- high-contrast theme
-- `reduceMotion` (boolean) -- disable animations
-- `narrationEnabled` (boolean) -- auto-play audio narration
+RLS: Researchers can CRUD own experiments. Other researchers can SELECT all.
 
-All preferences persisted in `localStorage` under key `podogerak_slb_settings`.
+**`experiment_participants`** — allocation records (readonly after insert)
+- `id` uuid PK
+- `experiment_id` uuid FK → experiments
+- `participant_id` uuid NOT NULL — generated UUID for de-identification
+- `user_id` uuid — optional link to real user
+- `stratum` text — school/class label
+- `arm` text NOT NULL — assigned arm
+- `allocation_code` text NOT NULL — short code e.g. "EXP-A3F2"
+- `created_at` timestamptz DEFAULT now()
 
-The provider wraps the app in `App.tsx` and applies a CSS class `slb-mode` to `<body>` when enabled (plus `slb-high-contrast` and `slb-reduce-motion` as needed).
+RLS: Researcher who owns the experiment can read. Insert via RPC only. No UPDATE/DELETE (locked).
 
----
+**`experiment_session_logs`** — per-session data capture
+- `id` uuid PK
+- `experiment_id` uuid FK → experiments
+- `participant_id` uuid FK → experiment_participants
+- `session_id` uuid — optional link to training_sessions
+- `arm` text NOT NULL
+- `start_timestamp` timestamptz NOT NULL
+- `end_timestamp` timestamptz
+- `duration_seconds` integer
+- `teacher_rating` integer CHECK 0-5 (via trigger)
+- `completion_flag` boolean DEFAULT false
+- `created_at` timestamptz DEFAULT now()
 
-## CSS Layer: SLB Overrides
+RLS: Researcher who owns the experiment can read/insert.
 
-Add a dedicated section in `src/index.css`:
+### RPC: `randomize_participant`
 
-- `.slb-mode` class on body applies:
-  - `font-size` scaled by the `textScale` value (via CSS custom property `--slb-text-scale`)
-  - Single-column layout: max-width constrained, grid columns forced to 1
-  - All buttons get `min-height: 44px; min-width: 44px`
-  - Focus indicators made thicker and more visible (3px outline)
-- `.slb-high-contrast` applies:
-  - Background: pure white (`#fff`) / dark mode: pure black (`#000`)
-  - Text: pure black / white
-  - Borders: solid 2px black/white
-  - Primary buttons: high-saturation orange with thick border
-- `.slb-reduce-motion` applies:
-  - `animation: none !important; transition: none !important` via `prefers-reduced-motion` override
-
----
-
-## New Files
-
-### 1. `src/contexts/SLBContext.tsx`
-React context + provider with all SLB settings, localStorage persistence, and body class management.
-
-### 2. `src/components/SLBToggle.tsx`
-A simple toggle button/switch labeled "Mode: SLB" with an accessibility icon. Used on LoginForm and Dashboard header.
-
-### 3. `src/components/AccessibilitySettings.tsx`
-Full settings page with:
-- Text size slider (1x to 2x, using Radix Slider)
-- Speech rate slider (0.5x to 2x)
-- High contrast toggle (Switch)
-- Reduce motion toggle (Switch)
-- Narration auto-play toggle (Switch)
-- Preview area showing sample text at current scale
-- "Reset ke Default" button
-
-### 4. `src/components/PictogramSteps.tsx`
-For each exercise during a session, display a horizontal scrollable row of pictogram cards showing the exercise steps. Each card has:
-- A large emoji/icon (the exercise illustration)
-- A short 1-2 word label
-- Current step highlighted with a colored border
-- Cards are min 80px wide for easy touch
-
-Data derived from the exercise's `child_instruction` split into simple steps.
-
-### 5. `src/lib/NarrationService.ts`
-Uses the browser's built-in `SpeechSynthesis` API (no external API needed):
-- `speak(text, rate)` -- queues text for narration
-- `stop()` -- cancels current speech
-- `isSpeaking()` -- check status
-- Respects `narrationEnabled` and `speechRate` from SLB context
-- Auto-narrates: exercise name, child instruction, countdown numbers, completion messages
-
-### 6. `src/components/SLBSessionControls.tsx`
-Alternate input controls shown during SessionRunner when SLB mode is active:
-- Two large buttons at the bottom: "Lanjut" (Next/OK) and "Selesai" (Done) -- min 64px height, full-width stacked
-- A "Guru Override" (Teacher Override) button -- distinct color (secondary), allows teacher to skip/complete exercise
-- Replaces the default Pause/Skip controls in SLB mode
-
-### 7. `public/a11y-checklist.md`
-Markdown file documenting:
-- Keyboard/tab order for each screen
-- ARIA attributes used (`role`, `aria-label`, `aria-live`, `aria-current`)
-- Focus management strategy
-- Screen reader compatibility notes
-- Touch target compliance (WCAG 2.1 AA: 44x44px minimum)
+Security definer function that:
+1. Takes `experiment_id`, `user_id` (optional), `stratum`
+2. Loads experiment arms and seed
+3. Counts existing allocations per arm within the stratum for balance
+4. Assigns to the arm with fewest participants (ties broken by deterministic hash of seed + participant count)
+5. Generates `participant_id` (UUID) and `allocation_code` (prefix + 4-char hex)
+6. Inserts into `experiment_participants` and returns the record
 
 ---
 
-## Modifications to Existing Files
+## Frontend Changes
 
-### `src/App.tsx`
-Wrap the app with `<SLBProvider>` around the existing tree.
+### New: `src/lib/ExperimentService.ts`
+- `createExperiment(name, description, arms, strata, seed)`
+- `getExperiments(researcherId)`
+- `addParticipant(experimentId, userId, stratum)` — calls RPC
+- `getParticipants(experimentId)`
+- `logSession(data)` — insert into experiment_session_logs
+- `getSessionLogs(experimentId)`
+- `exportCSV(experimentId)` — fetches logs, converts to CSV, triggers download
 
-### `src/index.css`
-Add the `.slb-mode`, `.slb-high-contrast`, `.slb-reduce-motion` CSS classes at the end of the file.
+### New: `src/components/ExperimentToolkit.tsx`
+Full-page module (accessed from Research Dashboard) with tabs:
 
-### `src/components/LoginForm.tsx`
-Add `<SLBToggle />` in the header area (below the PodoGerak logo). When SLB mode is active, form inputs and buttons get larger sizing automatically via CSS.
+**Tab 1: Experiments** — list + create form
+- Name, description, arms (dynamic add/remove), strata (comma-separated), seed (auto-generated with override)
+- List of existing experiments with status
 
-### `src/components/Dashboard.tsx`
-- Add `<SLBToggle />` next to the notification bell in the header
-- Add "Aksesibilitas" button in the quick actions grid, opening `<AccessibilitySettings />`
-- When SLB mode is on, the quick actions grid becomes single-column with larger buttons
-- Button labels simplified to single verbs: "Panduan", "Edukasi", "Nilai", "Laporan", "Riwayat" (mostly already short)
+**Tab 2: Participants** — for selected experiment
+- Table: participant_id, stratum, arm, allocation_code, created_at
+- "Add Participant" button with stratum selector
+- All allocations displayed as readonly
 
-### `src/components/SessionRunner.tsx`
-- Import and use `useSLB()` context
-- When SLB is enabled:
-  - Show `<PictogramSteps>` component with current exercise steps
-  - Show `<SLBSessionControls>` instead of default Pause/Skip buttons
-  - Auto-narrate exercise name and child instruction via `NarrationService`
-  - Narrate countdown numbers ("3... 2... 1... Mulai!")
-  - Narrate completion messages
-- All text uses `aria-live="polite"` for screen reader announcements
+**Tab 3: Session Logs** — for selected experiment
+- Table: session_id, participant, arm, timestamps, duration, rating, completion
+- "Log Session" form for manual entry
+- Summary cards: N participants, completed sessions, mean duration
 
----
+**Tab 4: Export**
+- "Export CSV" button that downloads all session logs
+- Summary statistics displayed
 
-## Audio Narration Flow
+### Modify: `src/components/ResearchDashboard.tsx`
+- Add "Experiment Toolkit" button that navigates to the new module
+- Check researcher role via `has_role` before showing
 
-Uses browser-native `window.speechSynthesis` (Web Speech API) -- no API key required, works offline:
-
-1. **Parent Prep phase**: Narrate exercise name + parent instruction
-2. **Countdown phase**: Narrate "3... 2... 1... Mulai!"
-3. **Exercise phase**: Narrate child instruction
-4. **Exercise Complete**: Narrate "Bagus! Gerakan selesai"
-5. **Session Complete**: Narrate "Sesi selesai! Hebat sekali!"
-
-Mute button already exists in SessionRunner header -- it will also control narration when SLB is active.
+### Modify: `src/components/Dashboard.tsx`
+- No changes needed (Research Dashboard already accessible via research mode toggle)
 
 ---
 
-## ARIA and Keyboard Accessibility
+## Randomization Algorithm
 
-- All interactive elements have `aria-label` attributes
-- Exercise timer uses `aria-live="assertive"` for countdown
-- Progress indicators use `role="progressbar"` with `aria-valuenow`
-- Tab order follows visual layout (top-to-bottom, left-to-right)
-- Focus trapped within modals/session screens
-- Skip-to-content link at top of page when SLB is active
-- All buttons have visible focus indicators (3px ring)
+Deterministic stratified block randomization:
+1. For each stratum, count current allocations per arm
+2. Find arm(s) with minimum count
+3. If tie, use hash: `(seed * 31 + totalParticipants) % tiedArms.length`
+4. This ensures reproducible allocation given the same seed and insertion order
 
 ---
 
-## Implementation Order
+## CSV Export
 
-1. Create `SLBContext.tsx` + provider
-2. Create `NarrationService.ts`
-3. Add SLB CSS overrides to `index.css`
-4. Create `SLBToggle.tsx`
-5. Create `AccessibilitySettings.tsx`
-6. Create `PictogramSteps.tsx`
-7. Create `SLBSessionControls.tsx`
-8. Update `App.tsx` (wrap with SLBProvider)
-9. Update `LoginForm.tsx` (add SLB toggle)
-10. Update `Dashboard.tsx` (add toggle + accessibility button)
-11. Update `SessionRunner.tsx` (narration + pictograms + alternate controls)
-12. Create `public/a11y-checklist.md`
+Client-side generation (no edge function needed):
+- Fetch all `experiment_session_logs` for the experiment
+- Join with `experiment_participants` for arm/stratum
+- Convert to CSV string with headers
+- Trigger browser download via Blob URL
+
+---
+
+## File Summary
+
+| File | Action |
+|------|--------|
+| Migration SQL | 3 tables + RPC + RLS |
+| `src/lib/ExperimentService.ts` | New |
+| `src/components/ExperimentToolkit.tsx` | New |
+| `src/components/ResearchDashboard.tsx` | Add toolkit button |
 
