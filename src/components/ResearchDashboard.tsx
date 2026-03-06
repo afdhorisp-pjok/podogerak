@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserData, EXERCISES, getDomainLabel, ALL_DOMAINS, ExerciseDomain } from '@/lib/workoutData';
 import { getSkillAssessments } from '@/lib/progressService';
 import { getDomainExposure, getSummaryStats } from '@/lib/progressUtils';
-import { ArrowLeft, Database, BarChart3, Activity, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Database, BarChart3, Activity, TrendingUp, FlaskConical } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ExperimentToolkit } from '@/components/ExperimentToolkit';
 
 interface ResearchDashboardProps {
   user: UserData;
@@ -13,6 +14,7 @@ interface ResearchDashboardProps {
 }
 
 export const ResearchDashboard = ({ user, onBack }: ResearchDashboardProps) => {
+  const [showToolkit, setShowToolkit] = useState(false);
   const [assessments, setAssessments] = useState<any[]>([]);
 
   useEffect(() => {
@@ -61,6 +63,10 @@ export const ResearchDashboard = ({ user, onBack }: ResearchDashboardProps) => {
     ? (Object.values(latestRatings).reduce((s, r) => s + r.rating, 0) / Object.values(latestRatings).length).toFixed(1)
     : '—';
 
+  if (showToolkit) {
+    return <ExperimentToolkit onBack={() => setShowToolkit(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-hero">
       <header className="sticky top-0 bg-background/80 backdrop-blur-lg z-10 border-b">
@@ -74,6 +80,9 @@ export const ResearchDashboard = ({ user, onBack }: ResearchDashboardProps) => {
             </h1>
             <p className="text-sm text-muted-foreground">{user.username} • ID: {user.id.slice(0, 8)}</p>
           </div>
+          <Button variant="outline" size="sm" className="ml-auto" onClick={() => setShowToolkit(true)}>
+            <FlaskConical className="w-4 h-4 mr-1" /> Experiment Toolkit
+          </Button>
         </div>
       </header>
 
