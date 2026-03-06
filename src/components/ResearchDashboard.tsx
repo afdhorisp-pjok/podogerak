@@ -63,6 +63,10 @@ export const ResearchDashboard = ({ user, onBack }: ResearchDashboardProps) => {
     ? (Object.values(latestRatings).reduce((s, r) => s + r.rating, 0) / Object.values(latestRatings).length).toFixed(1)
     : '—';
 
+  if (showToolkit) {
+    return <ExperimentToolkit onBack={() => setShowToolkit(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-hero">
       <header className="sticky top-0 bg-background/80 backdrop-blur-lg z-10 border-b">
