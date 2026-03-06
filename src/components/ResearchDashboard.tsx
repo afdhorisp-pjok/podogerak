@@ -80,6 +80,9 @@ export const ResearchDashboard = ({ user, onBack }: ResearchDashboardProps) => {
             </h1>
             <p className="text-sm text-muted-foreground">{user.username} • ID: {user.id.slice(0, 8)}</p>
           </div>
+          <Button variant="outline" size="sm" className="ml-auto" onClick={() => setShowToolkit(true)}>
+            <FlaskConical className="w-4 h-4 mr-1" /> Experiment Toolkit
+          </Button>
         </div>
       </header>
 
