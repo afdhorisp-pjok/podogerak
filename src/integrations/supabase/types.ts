@@ -115,6 +115,140 @@ export type Database = {
         }
         Relationships: []
       }
+      experiment_participants: {
+        Row: {
+          allocation_code: string
+          arm: string
+          created_at: string | null
+          experiment_id: string
+          id: string
+          participant_id: string
+          stratum: string | null
+          user_id: string | null
+        }
+        Insert: {
+          allocation_code: string
+          arm: string
+          created_at?: string | null
+          experiment_id: string
+          id?: string
+          participant_id?: string
+          stratum?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          allocation_code?: string
+          arm?: string
+          created_at?: string | null
+          experiment_id?: string
+          id?: string
+          participant_id?: string
+          stratum?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "experiment_participants_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "experiments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      experiment_session_logs: {
+        Row: {
+          arm: string
+          completion_flag: boolean | null
+          created_at: string | null
+          duration_seconds: number | null
+          end_timestamp: string | null
+          experiment_id: string
+          id: string
+          participant_id: string
+          session_id: string | null
+          start_timestamp: string
+          teacher_rating: number | null
+        }
+        Insert: {
+          arm: string
+          completion_flag?: boolean | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          end_timestamp?: string | null
+          experiment_id: string
+          id?: string
+          participant_id: string
+          session_id?: string | null
+          start_timestamp: string
+          teacher_rating?: number | null
+        }
+        Update: {
+          arm?: string
+          completion_flag?: boolean | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          end_timestamp?: string | null
+          experiment_id?: string
+          id?: string
+          participant_id?: string
+          session_id?: string | null
+          start_timestamp?: string
+          teacher_rating?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "experiment_session_logs_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "experiments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "experiment_session_logs_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "experiment_participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      experiments: {
+        Row: {
+          arms: Json
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          researcher_id: string
+          seed: number
+          status: string
+          strata: Json | null
+        }
+        Insert: {
+          arms?: Json
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          researcher_id: string
+          seed?: number
+          status?: string
+          strata?: Json | null
+        }
+        Update: {
+          arms?: Json
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          researcher_id?: string
+          seed?: number
+          status?: string
+          strata?: Json | null
+        }
+        Relationships: []
+      }
       movements: {
         Row: {
           animation_url: string | null
@@ -524,6 +658,14 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      randomize_participant: {
+        Args: {
+          experiment_id_input: string
+          stratum_input?: string
+          user_id_input?: string
+        }
+        Returns: Json
       }
       start_training_session: {
         Args: { user_id_input: string }
