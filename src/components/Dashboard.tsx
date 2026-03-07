@@ -33,6 +33,8 @@ import { getActiveSessionId } from '@/lib/SessionService';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { logConsentAudit } from '@/lib/ConsentService';
+import { SessionVerification } from './SessionVerification';
+import { createParentConfirmation } from '@/lib/VerificationService';
 
 interface DashboardProps {
   user: UserData;
@@ -52,6 +54,8 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   const [showDataRetention, setShowDataRetention] = useState(false);
   const [showChildAssent, setShowChildAssent] = useState(false);
   const [childAssented, setChildAssented] = useState(false);
+  const [pendingVerification, setPendingVerification] = useState<{ exerciseIds: string[]; duration: number; domain: string } | null>(null);
+  const [completedSessionId, setCompletedSessionId] = useState<string | null>(null);
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
   const [newBadges, setNewBadges] = useState<Badge[]>([]);
   const [showNewBadgeModal, setShowNewBadgeModal] = useState(false);
@@ -125,10 +129,20 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
 
   const handleWorkoutComplete = async (exerciseIds: string[], duration: number, domain: string) => {
     // Capture session ID before completing
-    const completedSessionId = getActiveSessionId();
+    const sessionId = getActiveSessionId();
 
     // Complete session in backend
     await completeSession();
+
+    // Store pending data and show verification UI
+    setCompletedSessionId(sessionId || null);
+    setPendingVerification({ exerciseIds, duration, domain });
+    setActiveSession(null);
+  };
+
+  const finalizeSesssion = async () => {
+    if (!pendingVerification) return;
+    const { exerciseIds, duration, domain } = pendingVerification;
 
     const session = {
       date: new Date().toISOString().split('T')[0],
@@ -176,17 +190,28 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
       currentWeek: newWeek,
     });
 
-    // Refresh remaining sessions
     getWeeklySessionsRemaining(user.id).then(setSessionsRemaining);
 
-    // Generate session report (fire-and-forget with retry)
     if (completedSessionId) {
       generateReport(completedSessionId, user.id, user.username, exerciseIds, duration, domain)
         .then(() => setReportRefreshKey(k => k + 1))
         .catch(err => console.error('Report generation failed:', err));
+
+      // Create parent confirmation
+      createParentConfirmation(completedSessionId, user.id, user.username)
+        .catch(err => console.error('Parent confirmation failed:', err));
     }
 
-    setActiveSession(null);
+    setPendingVerification(null);
+    setCompletedSessionId(null);
+  };
+
+  const handleVerificationComplete = () => {
+    finalizeSesssion();
+  };
+
+  const handleVerificationSkip = () => {
+    finalizeSesssion();
   };
 
   const handleSessionClose = async () => {
@@ -214,6 +239,16 @@ export const Dashboard = ({ user, onLogout, onUserUpdate }: DashboardProps) => {
   );
   if (showReportHistory) return <ReportHistory userId={user.id} onBack={() => setShowReportHistory(false)} />;
   if (showAccessibility) return <AccessibilitySettings onBack={() => setShowAccessibility(false)} />;
+  if (pendingVerification && completedSessionId) {
+    return (
+      <SessionVerification
+        sessionId={completedSessionId}
+        userId={user.id}
+        onComplete={handleVerificationComplete}
+        onSkip={handleVerificationSkip}
+      />
+    );
+  }
   if (activeSession) {
     return (
       <SessionRunner
