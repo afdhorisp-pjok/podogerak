@@ -1,171 +1,124 @@
 
 
-# SLB Accessibility Mode
+# Multi-Tier Session Verification
 
 ## Overview
 
-Add a dedicated "Mode SLB" (Siswa Luar Biasa / Special Needs Student) to the app. When enabled, the entire UI adapts for users with motor, cognitive, or sensory challenges: larger touch targets, high-contrast colors, simplified text, audio narration, pictogram-based exercise steps, and alternate input controls.
-
-All changes are additive -- existing components are wrapped with conditional styling via a React context, not rewritten.
+Add a post-session verification layer with three modes (checklist, photo, video), a parent confirmation flow, and an audit trail. Integrates after `SessionRunner` completion and before final report generation.
 
 ---
 
-## Architecture
+## Database Changes (1 migration)
 
-### SLB Context Provider
+### New table: `session_verifications`
+- `id` uuid PK
+- `session_id` uuid NOT NULL (FK → training_sessions)
+- `user_id` uuid NOT NULL
+- `verification_mode` text NOT NULL — 'checklist' | 'photo' | 'video'
+- `checklist_data` jsonb — 8-item checklist with boolean values
+- `media_metrics` jsonb — non-identifying metrics (pose keypoint counts, thumbnail dimensions)
+- `media_consent_photo` boolean DEFAULT false
+- `media_consent_video` boolean DEFAULT false
+- `teacher_id` uuid — who verified
+- `verified_at` timestamptz DEFAULT now()
+- `created_at` timestamptz DEFAULT now()
 
-Create `src/contexts/SLBContext.tsx` -- a React context holding all accessibility preferences:
+RLS: Users can insert/read own. Teachers can read sessions they verified. Researchers can read all.
 
-- `slbEnabled` (boolean) -- master toggle
-- `textScale` (number, 1.0-2.0) -- font size multiplier
-- `speechRate` (number, 0.5-2.0) -- TTS speech rate
-- `highContrast` (boolean) -- high-contrast theme
-- `reduceMotion` (boolean) -- disable animations
-- `narrationEnabled` (boolean) -- auto-play audio narration
+### New table: `parent_confirmations`
+- `id` uuid PK
+- `session_id` uuid NOT NULL
+- `parent_user_id` uuid NOT NULL
+- `confirmation_token` text NOT NULL UNIQUE — short token for one-click confirm
+- `confirmed` boolean DEFAULT false
+- `confirmed_at` timestamptz
+- `created_at` timestamptz DEFAULT now()
 
-All preferences persisted in `localStorage` under key `podogerak_slb_settings`.
+RLS: Parents can read/update own.
 
-The provider wraps the app in `App.tsx` and applies a CSS class `slb-mode` to `<body>` when enabled (plus `slb-high-contrast` and `slb-reduce-motion` as needed).
+### Storage bucket: `verification-media`
+- Private bucket with RLS
+- Only authenticated users can upload to their own folder
+- Files auto-expire based on retention settings
 
----
-
-## CSS Layer: SLB Overrides
-
-Add a dedicated section in `src/index.css`:
-
-- `.slb-mode` class on body applies:
-  - `font-size` scaled by the `textScale` value (via CSS custom property `--slb-text-scale`)
-  - Single-column layout: max-width constrained, grid columns forced to 1
-  - All buttons get `min-height: 44px; min-width: 44px`
-  - Focus indicators made thicker and more visible (3px outline)
-- `.slb-high-contrast` applies:
-  - Background: pure white (`#fff`) / dark mode: pure black (`#000`)
-  - Text: pure black / white
-  - Borders: solid 2px black/white
-  - Primary buttons: high-saturation orange with thick border
-- `.slb-reduce-motion` applies:
-  - `animation: none !important; transition: none !important` via `prefers-reduced-motion` override
+### Teacher checklist schema (8 items, stored as jsonb):
+```json
+[
+  { "key": "child_present", "label": "Anak hadir dan siap" },
+  { "key": "warm_up_done", "label": "Pemanasan dilakukan" },
+  { "key": "instructions_given", "label": "Instruksi diberikan dengan jelas" },
+  { "key": "movements_performed", "label": "Gerakan dilakukan sesuai panduan" },
+  { "key": "safety_observed", "label": "Keamanan diperhatikan" },
+  { "key": "child_engaged", "label": "Anak berpartisipasi aktif" },
+  { "key": "cool_down_done", "label": "Pendinginan dilakukan" },
+  { "key": "session_completed", "label": "Sesi diselesaikan penuh" }
+]
+```
 
 ---
 
 ## New Files
 
-### 1. `src/contexts/SLBContext.tsx`
-React context + provider with all SLB settings, localStorage persistence, and body class management.
+### `src/lib/VerificationService.ts`
+- `submitChecklist(sessionId, userId, checklistData)` — inserts verification record
+- `submitMediaVerification(sessionId, userId, mode, file, consents)` — strips EXIF via canvas re-encode, generates thumbnail, computes metrics (dimensions, file size), uploads to private bucket, stores only metrics in DB
+- `createParentConfirmation(sessionId, parentUserId)` — generates token, inserts record, creates notification
+- `confirmParentReport(token)` — marks confirmed, logs audit
+- `getVerificationStatus(sessionId)` — returns verification + parent confirmation status
 
-### 2. `src/components/SLBToggle.tsx`
-A simple toggle button/switch labeled "Mode: SLB" with an accessibility icon. Used on LoginForm and Dashboard header.
+**Media privacy pipeline (client-side):**
+1. Take photo/video via `<input type="file" accept="image/*,video/*">`
+2. For images: draw to canvas → re-export as JPEG (strips all EXIF/metadata)
+3. Generate small thumbnail (max 120px)
+4. Compute non-identifying metrics: `{ width, height, fileSize, timestamp }`
+5. Upload stripped file to private bucket `verification-media/{userId}/{sessionId}/`
+6. Store only metrics + thumbnail path in `session_verifications.media_metrics`
 
-### 3. `src/components/AccessibilitySettings.tsx`
-Full settings page with:
-- Text size slider (1x to 2x, using Radix Slider)
-- Speech rate slider (0.5x to 2x)
-- High contrast toggle (Switch)
-- Reduce motion toggle (Switch)
-- Narration auto-play toggle (Switch)
-- Preview area showing sample text at current scale
-- "Reset ke Default" button
+### `src/components/SessionVerification.tsx`
+Shown after session completion (before final save). Three tabs:
 
-### 4. `src/components/PictogramSteps.tsx`
-For each exercise during a session, display a horizontal scrollable row of pictogram cards showing the exercise steps. Each card has:
-- A large emoji/icon (the exercise illustration)
-- A short 1-2 word label
-- Current step highlighted with a colored border
-- Cards are min 80px wide for easy touch
+**Tab 1: Checklist** — 8 toggle items, teacher checks each. "Verifikasi" button when ≥6 checked.
 
-Data derived from the exercise's `child_instruction` split into simple steps.
+**Tab 2: Foto (Optional)** — Camera capture button, consent toggle "Saya setuju foto ini disimpan", preview of stripped image, upload button. Shows "Metadata dihapus ✓" badge.
 
-### 5. `src/lib/NarrationService.ts`
-Uses the browser's built-in `SpeechSynthesis` API (no external API needed):
-- `speak(text, rate)` -- queues text for narration
-- `stop()` -- cancels current speech
-- `isSpeaking()` -- check status
-- Respects `narrationEnabled` and `speechRate` from SLB context
-- Auto-narrates: exercise name, child instruction, countdown numbers, completion messages
+**Tab 3: Video (Optional)** — Same as photo but for short video (max 30s). Consent toggle required.
 
-### 6. `src/components/SLBSessionControls.tsx`
-Alternate input controls shown during SessionRunner when SLB mode is active:
-- Two large buttons at the bottom: "Lanjut" (Next/OK) and "Selesai" (Done) -- min 64px height, full-width stacked
-- A "Guru Override" (Teacher Override) button -- distinct color (secondary), allows teacher to skip/complete exercise
-- Replaces the default Pause/Skip controls in SLB mode
+Bottom: "Lewati Verifikasi" (Skip) option and "Simpan Verifikasi" button.
 
-### 7. `public/a11y-checklist.md`
-Markdown file documenting:
-- Keyboard/tab order for each screen
-- ARIA attributes used (`role`, `aria-label`, `aria-live`, `aria-current`)
-- Focus management strategy
-- Screen reader compatibility notes
-- Touch target compliance (WCAG 2.1 AA: 44x44px minimum)
+### `src/components/ParentConfirmation.tsx`
+Small card shown in parent's notification bell:
+- "Anak Anda telah menyelesaikan sesi latihan pada [date]. Konfirmasi?"
+- One-click "Ya, Benar ✓" button
+- Logs to `consent_audit_log`
 
 ---
 
-## Modifications to Existing Files
-
-### `src/App.tsx`
-Wrap the app with `<SLBProvider>` around the existing tree.
-
-### `src/index.css`
-Add the `.slb-mode`, `.slb-high-contrast`, `.slb-reduce-motion` CSS classes at the end of the file.
-
-### `src/components/LoginForm.tsx`
-Add `<SLBToggle />` in the header area (below the PodoGerak logo). When SLB mode is active, form inputs and buttons get larger sizing automatically via CSS.
+## Modified Files
 
 ### `src/components/Dashboard.tsx`
-- Add `<SLBToggle />` next to the notification bell in the header
-- Add "Aksesibilitas" button in the quick actions grid, opening `<AccessibilitySettings />`
-- When SLB mode is on, the quick actions grid becomes single-column with larger buttons
-- Button labels simplified to single verbs: "Panduan", "Edukasi", "Nilai", "Laporan", "Riwayat" (mostly already short)
+- After `handleWorkoutComplete`, show `<SessionVerification>` modal before final save
+- Add verification state management
+- When verification submitted, also call `createParentConfirmation` to notify parent
 
 ### `src/components/SessionRunner.tsx`
-- Import and use `useSLB()` context
-- When SLB is enabled:
-  - Show `<PictogramSteps>` component with current exercise steps
-  - Show `<SLBSessionControls>` instead of default Pause/Skip buttons
-  - Auto-narrate exercise name and child instruction via `NarrationService`
-  - Narrate countdown numbers ("3... 2... 1... Mulai!")
-  - Narrate completion messages
-- All text uses `aria-live="polite"` for screen reader announcements
+- On session complete phase, pass session data up to trigger verification flow (no changes to SessionRunner itself, verification happens in Dashboard after `onComplete`)
 
----
+### `src/components/NotificationBell.tsx`
+- Show parent confirmation notifications alongside existing report notifications
+- Add "Konfirmasi" action button inline
 
-## Audio Narration Flow
-
-Uses browser-native `window.speechSynthesis` (Web Speech API) -- no API key required, works offline:
-
-1. **Parent Prep phase**: Narrate exercise name + parent instruction
-2. **Countdown phase**: Narrate "3... 2... 1... Mulai!"
-3. **Exercise phase**: Narrate child instruction
-4. **Exercise Complete**: Narrate "Bagus! Gerakan selesai"
-5. **Session Complete**: Narrate "Sesi selesai! Hebat sekali!"
-
-Mute button already exists in SessionRunner header -- it will also control narration when SLB is active.
-
----
-
-## ARIA and Keyboard Accessibility
-
-- All interactive elements have `aria-label` attributes
-- Exercise timer uses `aria-live="assertive"` for countdown
-- Progress indicators use `role="progressbar"` with `aria-valuenow`
-- Tab order follows visual layout (top-to-bottom, left-to-right)
-- Focus trapped within modals/session screens
-- Skip-to-content link at top of page when SLB is active
-- All buttons have visible focus indicators (3px ring)
+### `src/lib/ReportService.ts`
+- Add `getParentConfirmations(userId)` for fetching pending confirmations
+- Extend notification query to include parent confirmations
 
 ---
 
 ## Implementation Order
 
-1. Create `SLBContext.tsx` + provider
-2. Create `NarrationService.ts`
-3. Add SLB CSS overrides to `index.css`
-4. Create `SLBToggle.tsx`
-5. Create `AccessibilitySettings.tsx`
-6. Create `PictogramSteps.tsx`
-7. Create `SLBSessionControls.tsx`
-8. Update `App.tsx` (wrap with SLBProvider)
-9. Update `LoginForm.tsx` (add SLB toggle)
-10. Update `Dashboard.tsx` (add toggle + accessibility button)
-11. Update `SessionRunner.tsx` (narration + pictograms + alternate controls)
-12. Create `public/a11y-checklist.md`
+1. Database migration (2 tables + storage bucket + RLS)
+2. `VerificationService.ts` (CRUD + media pipeline)
+3. `SessionVerification.tsx` (3-tab verification UI)
+4. `ParentConfirmation.tsx` (one-click confirm card)
+5. Update `Dashboard.tsx` (verification flow after session)
+6. Update `NotificationBell.tsx` (parent confirmation notifications)
 
