@@ -303,6 +303,50 @@ export type Database = {
         }
         Relationships: []
       }
+      parent_confirmations: {
+        Row: {
+          child_name: string | null
+          confirmation_token: string
+          confirmed: boolean | null
+          confirmed_at: string | null
+          created_at: string | null
+          id: string
+          parent_user_id: string
+          session_date: string | null
+          session_id: string
+        }
+        Insert: {
+          child_name?: string | null
+          confirmation_token?: string
+          confirmed?: boolean | null
+          confirmed_at?: string | null
+          created_at?: string | null
+          id?: string
+          parent_user_id: string
+          session_date?: string | null
+          session_id: string
+        }
+        Update: {
+          child_name?: string | null
+          confirmation_token?: string
+          confirmed?: boolean | null
+          confirmed_at?: string | null
+          created_at?: string | null
+          id?: string
+          parent_user_id?: string
+          session_date?: string | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parent_confirmations_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_audit_log: {
         Row: {
           action: string
@@ -408,6 +452,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "session_reports_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_verifications: {
+        Row: {
+          checklist_data: Json | null
+          created_at: string | null
+          id: string
+          media_consent_photo: boolean | null
+          media_consent_video: boolean | null
+          media_metrics: Json | null
+          session_id: string
+          teacher_id: string | null
+          user_id: string
+          verification_mode: string
+          verified_at: string | null
+        }
+        Insert: {
+          checklist_data?: Json | null
+          created_at?: string | null
+          id?: string
+          media_consent_photo?: boolean | null
+          media_consent_video?: boolean | null
+          media_metrics?: Json | null
+          session_id: string
+          teacher_id?: string | null
+          user_id: string
+          verification_mode: string
+          verified_at?: string | null
+        }
+        Update: {
+          checklist_data?: Json | null
+          created_at?: string | null
+          id?: string
+          media_consent_photo?: boolean | null
+          media_consent_video?: boolean | null
+          media_metrics?: Json | null
+          session_id?: string
+          teacher_id?: string | null
+          user_id?: string
+          verification_mode?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_verifications_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "training_sessions"
