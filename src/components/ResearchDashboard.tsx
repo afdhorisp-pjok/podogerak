@@ -7,6 +7,8 @@ import { getDomainExposure, getSummaryStats } from '@/lib/progressUtils';
 import { ArrowLeft, Database, BarChart3, Activity, TrendingUp, FlaskConical } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ExperimentToolkit } from '@/components/ExperimentToolkit';
+import { ResearchAnalytics } from '@/components/ResearchAnalytics';
+import { getExperiments, type Experiment } from '@/lib/ExperimentService';
 
 interface ResearchDashboardProps {
   user: UserData;
@@ -15,12 +17,18 @@ interface ResearchDashboardProps {
 
 export const ResearchDashboard = ({ user, onBack }: ResearchDashboardProps) => {
   const [showToolkit, setShowToolkit] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState<Experiment | null>(null);
+  const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [assessments, setAssessments] = useState<any[]>([]);
 
   useEffect(() => {
     const load = async () => {
-      const data = await getSkillAssessments(user.id);
+      const [data, exps] = await Promise.all([
+        getSkillAssessments(user.id),
+        getExperiments(),
+      ]);
       setAssessments(data);
+      setExperiments(exps);
     };
     load();
   }, [user.id]);
@@ -63,6 +71,10 @@ export const ResearchDashboard = ({ user, onBack }: ResearchDashboardProps) => {
     ? (Object.values(latestRatings).reduce((s, r) => s + r.rating, 0) / Object.values(latestRatings).length).toFixed(1)
     : '—';
 
+  if (showAnalytics) {
+    return <ResearchAnalytics experiment={showAnalytics} onBack={() => setShowAnalytics(null)} />;
+  }
+
   if (showToolkit) {
     return <ExperimentToolkit onBack={() => setShowToolkit(false)} />;
   }
@@ -83,6 +95,11 @@ export const ResearchDashboard = ({ user, onBack }: ResearchDashboardProps) => {
           <Button variant="outline" size="sm" className="ml-auto" onClick={() => setShowToolkit(true)}>
             <FlaskConical className="w-4 h-4 mr-1" /> Experiment Toolkit
           </Button>
+          {experiments.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setShowAnalytics(experiments[0])}>
+              <TrendingUp className="w-4 h-4 mr-1" /> Analitik
+            </Button>
+          )}
         </div>
       </header>
 

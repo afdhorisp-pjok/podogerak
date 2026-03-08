@@ -192,3 +192,27 @@ export function exportCSV(logs: ExperimentSessionLog[], participants: Experiment
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export async function getConsentRecords(): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('consent_records')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Error fetching consent records:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function getConsentAuditLogs(): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('consent_audit_log')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Error fetching consent audit logs:', error);
+    return [];
+  }
+  return data || [];
+}
