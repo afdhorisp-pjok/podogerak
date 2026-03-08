@@ -6,7 +6,14 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, FlaskConical, Plus, Users, ClipboardList, Download, X, BarChart3 } from 'lucide-react';
+import { ArrowLeft, FlaskConical, Plus, Users, ClipboardList, Download, X, BarChart3, TrendingUp } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  createExperiment, getExperiments, addParticipant, getParticipants,
+  logSession, getSessionLogs, exportCSV,
+  Experiment, ExperimentParticipant, ExperimentSessionLog
+} from '@/lib/ExperimentService';
+import { ResearchAnalytics } from '@/components/ResearchAnalytics';
 import { toast } from 'sonner';
 import {
   createExperiment, getExperiments, addParticipant, getParticipants,
@@ -218,6 +225,7 @@ export const ExperimentToolkit = ({ onBack }: ExperimentToolkitProps) => {
               <TabsTrigger value="participants"><Users className="w-4 h-4 mr-1" /> Partisipan</TabsTrigger>
               <TabsTrigger value="logs"><ClipboardList className="w-4 h-4 mr-1" /> Sesi</TabsTrigger>
               <TabsTrigger value="summary"><BarChart3 className="w-4 h-4 mr-1" /> Ringkasan</TabsTrigger>
+              <TabsTrigger value="analytics"><TrendingUp className="w-4 h-4 mr-1" /> Analitik</TabsTrigger>
             </TabsList>
 
             {/* ── Participants Tab ── */}
@@ -350,6 +358,11 @@ export const ExperimentToolkit = ({ onBack }: ExperimentToolkitProps) => {
               <Button onClick={() => exportCSV(logs, participants)} disabled={logs.length === 0}>
                 <Download className="w-4 h-4 mr-2" /> Export CSV
               </Button>
+            </TabsContent>
+
+            {/* ── Analytics Tab ── */}
+            <TabsContent value="analytics">
+              <ResearchAnalytics experiment={selected} onBack={() => {}} />
             </TabsContent>
           </Tabs>
         )}
