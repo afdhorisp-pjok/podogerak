@@ -14,12 +14,6 @@ import {
   Experiment, ExperimentParticipant, ExperimentSessionLog
 } from '@/lib/ExperimentService';
 import { ResearchAnalytics } from '@/components/ResearchAnalytics';
-import { toast } from 'sonner';
-import {
-  createExperiment, getExperiments, addParticipant, getParticipants,
-  logSession, getSessionLogs, exportCSV,
-  Experiment, ExperimentParticipant, ExperimentSessionLog
-} from '@/lib/ExperimentService';
 
 interface ExperimentToolkitProps {
   onBack: () => void;
