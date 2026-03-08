@@ -1,171 +1,127 @@
 
 
-# SLB Accessibility Mode
+# Researcher Analytics Module
 
 ## Overview
 
-Add a dedicated "Mode SLB" (Siswa Luar Biasa / Special Needs Student) to the app. When enabled, the entire UI adapts for users with motor, cognitive, or sensory challenges: larger touch targets, high-contrast colors, simplified text, audio narration, pictogram-based exercise steps, and alternate input controls.
-
-All changes are additive -- existing components are wrapped with conditional styling via a React context, not rewritten.
+Add a comprehensive analytics dashboard for researchers with real-time metrics, auto-flagging for at-risk participants, raw/aggregated data export, and admin consent log management. Builds on top of the existing ExperimentToolkit and ExperimentService.
 
 ---
 
-## Architecture
+## No Database Changes Required
 
-### SLB Context Provider
+All data needed (experiments, participants, session logs, verifications, consent records/audit) already exists. The analytics are computed client-side from existing tables. No new tables or migrations needed.
 
-Create `src/contexts/SLBContext.tsx` -- a React context holding all accessibility preferences:
+However, we need one RLS policy addition: allow `admin` role to read `consent_records` and `consent_audit_log` (currently only `researcher` can read consent records).
 
-- `slbEnabled` (boolean) -- master toggle
-- `textScale` (number, 1.0-2.0) -- font size multiplier
-- `speechRate` (number, 0.5-2.0) -- TTS speech rate
-- `highContrast` (boolean) -- high-contrast theme
-- `reduceMotion` (boolean) -- disable animations
-- `narrationEnabled` (boolean) -- auto-play audio narration
+**Migration (small):**
+```sql
+-- Admin can read consent records
+CREATE POLICY "Admins can read all consent"
+ON public.consent_records FOR SELECT TO authenticated
+USING (has_role(auth.uid(), 'admin'::app_role));
 
-All preferences persisted in `localStorage` under key `podogerak_slb_settings`.
+-- Admin can read consent audit
+CREATE POLICY "Admins can read consent audit"
+ON public.consent_audit_log FOR SELECT TO authenticated
+USING (has_role(auth.uid(), 'admin'::app_role));
 
-The provider wraps the app in `App.tsx` and applies a CSS class `slb-mode` to `<body>` when enabled (plus `slb-high-contrast` and `slb-reduce-motion` as needed).
+-- Add admin to app_role enum if not exists
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'admin';
+```
 
----
-
-## CSS Layer: SLB Overrides
-
-Add a dedicated section in `src/index.css`:
-
-- `.slb-mode` class on body applies:
-  - `font-size` scaled by the `textScale` value (via CSS custom property `--slb-text-scale`)
-  - Single-column layout: max-width constrained, grid columns forced to 1
-  - All buttons get `min-height: 44px; min-width: 44px`
-  - Focus indicators made thicker and more visible (3px outline)
-- `.slb-high-contrast` applies:
-  - Background: pure white (`#fff`) / dark mode: pure black (`#000`)
-  - Text: pure black / white
-  - Borders: solid 2px black/white
-  - Primary buttons: high-saturation orange with thick border
-- `.slb-reduce-motion` applies:
-  - `animation: none !important; transition: none !important` via `prefers-reduced-motion` override
+Wait -- `admin` already exists in the enum. So just the two policies.
 
 ---
 
 ## New Files
 
-### 1. `src/contexts/SLBContext.tsx`
-React context + provider with all SLB settings, localStorage persistence, and body class management.
+### `src/lib/AnalyticsService.ts`
+Utility functions that compute analytics from already-fetched data (no new DB queries beyond what ExperimentService provides):
 
-### 2. `src/components/SLBToggle.tsx`
-A simple toggle button/switch labeled "Mode: SLB" with an accessibility icon. Used on LoginForm and Dashboard header.
+- `getParticipantsByArm(participants)` -- groups count by arm
+- `getWeeklyCompletionRate(logs)` -- completion % per ISO week
+- `getAverageDuration(logs)` -- mean duration in seconds
+- `getTeacherFidelityScore(logs)` -- avg teacher_rating across all logs (proxy for checklist fidelity)
+- `getFollowUpList(participants, logs, config)` -- identifies participants with 3+ consecutive missed sessions or fidelity < threshold
+- `generateAggregatedReport(participants, logs)` -- produces per-arm stats: N, mean±SD duration, completion rate, with t-test placeholder columns
+- `exportRawCSV(logs, participants)` -- reuses existing `exportCSV` from ExperimentService
+- `exportAggregatedCSV(report)` -- downloads aggregated summary
+- `exportConsentLogsCSV(consentRecords, auditLogs)` -- admin-only consent log export
 
-### 3. `src/components/AccessibilitySettings.tsx`
-Full settings page with:
-- Text size slider (1x to 2x, using Radix Slider)
-- Speech rate slider (0.5x to 2x)
-- High contrast toggle (Switch)
-- Reduce motion toggle (Switch)
-- Narration auto-play toggle (Switch)
-- Preview area showing sample text at current scale
-- "Reset ke Default" button
+### `src/components/ResearchAnalytics.tsx`
+Full-page analytics module accessible from ExperimentToolkit (new tab) or ResearchDashboard. Takes an experiment as prop.
 
-### 4. `src/components/PictogramSteps.tsx`
-For each exercise during a session, display a horizontal scrollable row of pictogram cards showing the exercise steps. Each card has:
-- A large emoji/icon (the exercise illustration)
-- A short 1-2 word label
-- Current step highlighted with a colored border
-- Cards are min 80px wide for easy touch
+**Sections:**
 
-Data derived from the exercise's `child_instruction` split into simple steps.
+1. **Summary Cards (top row):** N per arm, total completed, avg duration, fidelity score
+2. **Charts:**
+   - Bar chart: participants by arm
+   - Line chart: weekly completion rate over time
+   - Gauge/number: teacher fidelity score
+3. **Follow-Up List:** Table of flagged participants (3+ missed sessions or fidelity < threshold). Threshold configurable via input (default 3.0).
+4. **Export Panel:**
+   - "Export Raw CSV" button (all session logs)
+   - "Export Aggregated Report" button (pre/post template with N, mean±SD, t-test placeholder)
+5. **Admin Section (conditional on admin role):**
+   - "Download Consent Logs" button
+   - "Revoke User Access" placeholder (UI only, logs action)
 
-### 5. `src/lib/NarrationService.ts`
-Uses the browser's built-in `SpeechSynthesis` API (no external API needed):
-- `speak(text, rate)` -- queues text for narration
-- `stop()` -- cancels current speech
-- `isSpeaking()` -- check status
-- Respects `narrationEnabled` and `speechRate` from SLB context
-- Auto-narrates: exercise name, child instruction, countdown numbers, completion messages
-
-### 6. `src/components/SLBSessionControls.tsx`
-Alternate input controls shown during SessionRunner when SLB mode is active:
-- Two large buttons at the bottom: "Lanjut" (Next/OK) and "Selesai" (Done) -- min 64px height, full-width stacked
-- A "Guru Override" (Teacher Override) button -- distinct color (secondary), allows teacher to skip/complete exercise
-- Replaces the default Pause/Skip controls in SLB mode
-
-### 7. `public/a11y-checklist.md`
-Markdown file documenting:
-- Keyboard/tab order for each screen
-- ARIA attributes used (`role`, `aria-label`, `aria-live`, `aria-current`)
-- Focus management strategy
-- Screen reader compatibility notes
-- Touch target compliance (WCAG 2.1 AA: 44x44px minimum)
+### `public/variable-definitions.md`
+Documentation file with variable definitions for statistical analysis:
+- participant_id, allocation_code, arm, stratum
+- start_timestamp, end_timestamp, duration_seconds
+- teacher_rating (0-5 scale), completion_flag
+- fidelity_score definition
+- Aggregated report column definitions (N, M, SD, t-test placeholder)
 
 ---
 
-## Modifications to Existing Files
+## Modified Files
 
-### `src/App.tsx`
-Wrap the app with `<SLBProvider>` around the existing tree.
+### `src/components/ExperimentToolkit.tsx`
+- Add a 4th tab "Analitik" (Analytics) that renders `<ResearchAnalytics>` for the selected experiment
+- Add to TabsList: `<TabsTrigger value="analytics">📊 Analitik</TabsTrigger>`
 
-### `src/index.css`
-Add the `.slb-mode`, `.slb-high-contrast`, `.slb-reduce-motion` CSS classes at the end of the file.
+### `src/components/ResearchDashboard.tsx`
+- Add "Analitik Penelitian" button alongside "Experiment Toolkit" button
+- When clicked, shows a experiment selector then navigates to ResearchAnalytics
 
-### `src/components/LoginForm.tsx`
-Add `<SLBToggle />` in the header area (below the PodoGerak logo). When SLB mode is active, form inputs and buttons get larger sizing automatically via CSS.
-
-### `src/components/Dashboard.tsx`
-- Add `<SLBToggle />` next to the notification bell in the header
-- Add "Aksesibilitas" button in the quick actions grid, opening `<AccessibilitySettings />`
-- When SLB mode is on, the quick actions grid becomes single-column with larger buttons
-- Button labels simplified to single verbs: "Panduan", "Edukasi", "Nilai", "Laporan", "Riwayat" (mostly already short)
-
-### `src/components/SessionRunner.tsx`
-- Import and use `useSLB()` context
-- When SLB is enabled:
-  - Show `<PictogramSteps>` component with current exercise steps
-  - Show `<SLBSessionControls>` instead of default Pause/Skip buttons
-  - Auto-narrate exercise name and child instruction via `NarrationService`
-  - Narrate countdown numbers ("3... 2... 1... Mulai!")
-  - Narrate completion messages
-- All text uses `aria-live="polite"` for screen reader announcements
+### `src/lib/ExperimentService.ts`
+- Add `getConsentRecords()` and `getConsentAuditLogs()` functions for admin export
+- Add `getSessionVerifications(experimentId)` for fidelity score computation from checklist data
 
 ---
 
-## Audio Narration Flow
+## Implementation Details
 
-Uses browser-native `window.speechSynthesis` (Web Speech API) -- no API key required, works offline:
+### Follow-Up Auto-Flagging Algorithm
+For each participant:
+1. Get their session logs sorted by date
+2. Calculate expected session dates (weekly cadence from first session)
+3. Count consecutive gaps where no session exists
+4. If consecutive misses >= 3, flag as "missed_sessions"
+5. Calculate per-participant avg teacher_rating; if < threshold, flag as "low_fidelity"
 
-1. **Parent Prep phase**: Narrate exercise name + parent instruction
-2. **Countdown phase**: Narrate "3... 2... 1... Mulai!"
-3. **Exercise phase**: Narrate child instruction
-4. **Exercise Complete**: Narrate "Bagus! Gerakan selesai"
-5. **Session Complete**: Narrate "Sesi selesai! Hebat sekali!"
-
-Mute button already exists in SessionRunner header -- it will also control narration when SLB is active.
-
----
-
-## ARIA and Keyboard Accessibility
-
-- All interactive elements have `aria-label` attributes
-- Exercise timer uses `aria-live="assertive"` for countdown
-- Progress indicators use `role="progressbar"` with `aria-valuenow`
-- Tab order follows visual layout (top-to-bottom, left-to-right)
-- Focus trapped within modals/session screens
-- Skip-to-content link at top of page when SLB is active
-- All buttons have visible focus indicators (3px ring)
+### Aggregated Report Template
+```
+arm | N | sessions_completed | mean_duration | sd_duration | mean_rating | sd_rating | t_stat | p_value
+control | 15 | 42 | 845.2 | 120.3 | 4.1 | 0.8 | — | —
+intervention_a | 14 | 38 | 920.1 | 98.7 | 4.3 | 0.6 | 1.82* | .07
+```
+*t-test placeholder: computed as `(M1-M2)/sqrt(SD1²/N1 + SD2²/N2)` for duration, comparing each arm vs control.
 
 ---
 
-## Implementation Order
+## File Summary
 
-1. Create `SLBContext.tsx` + provider
-2. Create `NarrationService.ts`
-3. Add SLB CSS overrides to `index.css`
-4. Create `SLBToggle.tsx`
-5. Create `AccessibilitySettings.tsx`
-6. Create `PictogramSteps.tsx`
-7. Create `SLBSessionControls.tsx`
-8. Update `App.tsx` (wrap with SLBProvider)
-9. Update `LoginForm.tsx` (add SLB toggle)
-10. Update `Dashboard.tsx` (add toggle + accessibility button)
-11. Update `SessionRunner.tsx` (narration + pictograms + alternate controls)
-12. Create `public/a11y-checklist.md`
+| File | Action |
+|------|--------|
+| Migration SQL | 2 RLS policies for admin consent access |
+| `src/lib/AnalyticsService.ts` | New: all analytics computations + exports |
+| `src/components/ResearchAnalytics.tsx` | New: analytics dashboard UI |
+| `public/variable-definitions.md` | New: statistical variable documentation |
+| `src/components/ExperimentToolkit.tsx` | Add Analytics tab |
+| `src/components/ResearchDashboard.tsx` | Add analytics button |
+| `src/lib/ExperimentService.ts` | Add consent/verification query functions |
 
