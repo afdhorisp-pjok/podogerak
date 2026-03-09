@@ -1,9 +1,8 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { createConsentRecord, ConsentOptions } from '@/lib/ConsentService';
 import { FileText, Download } from 'lucide-react';
 
@@ -53,23 +52,57 @@ export const ParentConsentModal = ({ open, userId, onConsented }: ParentConsentM
   const [consentVideoUpload, setConsentVideoUpload] = useState(false);
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Check if content fits without scrolling
+  useEffect(() => {
+    if (!open) return;
+    const timer = setTimeout(() => {
+      const el = scrollContainerRef.current;
+      if (el && el.scrollHeight <= el.clientHeight + 5) {
+        console.log('[Consent] Content fits without scrolling, enabling button');
+        setHasScrolledToBottom(true);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [open]);
+
+  // 5-second fallback timer
+  useEffect(() => {
+    if (!open || hasScrolledToBottom) return;
+    const fallback = setTimeout(() => {
+      console.log('[Consent] Fallback timer triggered after 5s');
+      setHasScrolledToBottom(true);
+    }, 5000);
+    return () => clearTimeout(fallback);
+  }, [open, hasScrolledToBottom]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    const atBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 30;
-    if (atBottom) setHasScrolledToBottom(true);
+    const { scrollHeight, scrollTop, clientHeight } = e.currentTarget;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    console.log('[Consent] Scroll position:', { scrollHeight, scrollTop, clientHeight, distanceFromBottom });
+    if (distanceFromBottom < 30) {
+      console.log('[Consent] Reached bottom, enabling button');
+      setHasScrolledToBottom(true);
+    }
   }, []);
 
   const handleSubmit = async () => {
+    console.log('[Consent] Submit clicked');
     setIsSubmitting(true);
     const consents: ConsentOptions = { consentAudio, consentSensorData, consentVideoUpload };
     const result = await createConsentRecord(userId, userId, consents);
     setIsSubmitting(false);
-    if (result) onConsented();
+    if (result) {
+      console.log('[Consent] Consent saved successfully, id:', result);
+      onConsented();
+    } else {
+      console.error('[Consent] Failed to save consent');
+    }
   };
 
   const handleDownloadPDF = () => {
+    console.log('[Consent] Download PDF clicked');
     const blob = new Blob([CONSENT_TEXT], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -78,6 +111,8 @@ export const ParentConsentModal = ({ open, userId, onConsented }: ParentConsentM
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const canAgree = hasScrolledToBottom && !isSubmitting;
 
   return (
     <Dialog open={open}>
@@ -89,11 +124,15 @@ export const ParentConsentModal = ({ open, userId, onConsented }: ParentConsentM
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 max-h-[40vh] border rounded-lg p-4" onScrollCapture={handleScroll}>
-          <div ref={scrollRef} className="whitespace-pre-wrap text-sm text-muted-foreground leading-relaxed">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 max-h-[40vh] overflow-y-auto border rounded-lg p-4"
+        >
+          <div className="whitespace-pre-wrap text-sm text-muted-foreground leading-relaxed">
             {CONSENT_TEXT}
           </div>
-        </ScrollArea>
+        </div>
 
         {!hasScrolledToBottom && (
           <p className="text-xs text-muted-foreground text-center animate-pulse">
@@ -122,8 +161,8 @@ export const ParentConsentModal = ({ open, userId, onConsented }: ParentConsentM
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!hasScrolledToBottom || isSubmitting}
-            className="flex-1"
+            disabled={!canAgree}
+            className={`flex-1 transition-all ${!canAgree ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {isSubmitting ? 'Menyimpan...' : 'Saya Menyetujui ✓'}
           </Button>
