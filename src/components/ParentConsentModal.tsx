@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { createConsentRecord, ConsentOptions } from '@/lib/ConsentService';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, Loader2 } from 'lucide-react';
 
 interface ParentConsentModalProps {
   open: boolean;
@@ -88,6 +88,7 @@ export const ParentConsentModal = ({ open, userId, onConsented }: ParentConsentM
   }, []);
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     console.log('[Consent] Submit clicked');
     setIsSubmitting(true);
     const consents: ConsentOptions = { consentAudio, consentSensorData, consentVideoUpload };
@@ -116,18 +117,28 @@ export const ParentConsentModal = ({ open, userId, onConsented }: ParentConsentM
 
   return (
     <Dialog open={open}>
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col" onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent
+        className="max-w-lg max-h-[90vh] flex flex-col [&>button]:hidden"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <FileText className="w-5 h-5 text-primary" />
             Persetujuan Orang Tua
           </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Baca formulir persetujuan berikut sebelum melanjutkan.
+          </DialogDescription>
         </DialogHeader>
 
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="flex-1 max-h-[40vh] overflow-y-auto border rounded-lg p-4"
+          role="document"
+          tabIndex={0}
+          className="flex-1 max-h-[40vh] overflow-y-auto border rounded-lg p-4 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         >
           <div className="whitespace-pre-wrap text-sm text-muted-foreground leading-relaxed">
             {CONSENT_TEXT}
@@ -161,10 +172,15 @@ export const ParentConsentModal = ({ open, userId, onConsented }: ParentConsentM
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!canAgree}
-            className={`flex-1 transition-all ${!canAgree ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={!canAgree || isSubmitting}
+            aria-disabled={!canAgree || isSubmitting}
+            className={`flex-1 transition-all ${!canAgree || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            {isSubmitting ? 'Menyimpan...' : 'Saya Menyetujui ✓'}
+            {isSubmitting ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...</>
+            ) : (
+              'Saya Menyetujui ✓'
+            )}
           </Button>
         </div>
       </DialogContent>
