@@ -203,20 +203,53 @@ export function exportAggregatedCSV(report: ArmStats[]) {
   downloadCSV([headers.join(','), ...rows].join('\n'), `aggregated_report_${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
-export function exportConsentLogsCSV(consentRecords: any[], auditLogs: any[]) {
-  // Consent records
-  const cHeaders = ['id', 'user_id', 'child_user_id', 'consent_version', 'consent_hash', 'granted_at', 'revoked_at', 'consent_audio', 'consent_video_upload', 'consent_sensor_data'];
-  const cRows = consentRecords.map(r => [
-    r.id, r.user_id, r.child_user_id || '', r.consent_version, r.consent_hash,
-    r.granted_at || '', r.revoked_at || '',
-    r.consent_audio ? '1' : '0', r.consent_video_upload ? '1' : '0', r.consent_sensor_data ? '1' : '0',
-  ].join(','));
+export function exportConsentLogsCSV(
+  consentRecords: any[],
+  auditLogs: any[],
+  participants?: ExperimentParticipant[]
+) {
+  // Build lookup: user_id → participant info
+  const participantByUserId = new Map<string, ExperimentParticipant>();
+  if (participants) {
+    for (const p of participants) {
+      if (p.user_id) participantByUserId.set(p.user_id, p);
+    }
+  }
+
+  const deviceType = navigator.userAgent;
+
+  // Consent records with new columns
+  const cHeaders = [
+    'participant_id', 'school', 'timestamp', 'consent_version',
+    'sensor_permission', 'video_permission', 'audio_permission', 'device_type',
+    'id', 'user_id', 'child_user_id', 'consent_hash', 'revoked_at',
+  ];
+  const cRows = consentRecords.map(r => {
+    const matched = participantByUserId.get(r.child_user_id || '') || participantByUserId.get(r.user_id || '');
+    return [
+      matched?.participant_id || '',
+      matched?.stratum || '',
+      r.granted_at || '',
+      r.consent_version || '',
+      r.consent_sensor_data ? '1' : '0',
+      r.consent_video_upload ? '1' : '0',
+      r.consent_audio ? '1' : '0',
+      `"${deviceType}"`,
+      r.id,
+      r.user_id,
+      r.child_user_id || '',
+      r.consent_hash,
+      r.revoked_at || '',
+    ].join(',');
+  });
   downloadCSV([cHeaders.join(','), ...cRows].join('\n'), `consent_records_${new Date().toISOString().slice(0, 10)}.csv`);
 
   // Audit logs
   const aHeaders = ['id', 'user_id', 'action', 'consent_record_id', 'metadata', 'created_at'];
   const aRows = auditLogs.map(r => [
-    r.id, r.user_id, r.action, r.consent_record_id || '', JSON.stringify(r.metadata || {}), r.created_at || '',
+    r.id, r.user_id, r.action, r.consent_record_id || '',
+    `"${JSON.stringify(r.metadata || {}).replace(/"/g, '""')}"`,
+    r.created_at || '',
   ].join(','));
   downloadCSV([aHeaders.join(','), ...aRows].join('\n'), `consent_audit_${new Date().toISOString().slice(0, 10)}.csv`);
 }
