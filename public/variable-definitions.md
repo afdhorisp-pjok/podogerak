@@ -37,6 +37,19 @@
 | `t_stat` | Independent samples t-statistic comparing arm vs control on duration: `t = (M₁ - M₂) / √(SD₁²/N₁ + SD₂²/N₂)` |
 | `p_value` | Placeholder — compute externally using appropriate statistical software |
 
+## Consent Record Variables (CSV Export)
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `participant_id` | UUID | Links consent to experiment participant (via `child_user_id` → `experiment_participants.user_id`) |
+| `school` | String | School/class stratum from experiment enrollment (`experiment_participants.stratum`) |
+| `timestamp` | ISO 8601 | When consent was granted (`granted_at`) |
+| `consent_version` | String | Version of consent form (e.g., v1.0) |
+| `sensor_permission` | Boolean (0/1) | Whether sensor data collection was permitted |
+| `video_permission` | Boolean (0/1) | Whether video upload was permitted |
+| `audio_permission` | Boolean (0/1) | Whether audio recording was permitted |
+| `device_type` | String | Device/browser user agent at time of export |
+
 ## Notes
 
 - **Randomization**: Uses stratified block randomization with a deterministic seed. The `randomize_participant` function ensures balanced allocation within each stratum.

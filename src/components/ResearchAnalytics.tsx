@@ -82,7 +82,7 @@ export const ResearchAnalytics = ({ experiment, onBack }: ResearchAnalyticsProps
         getConsentRecords(),
         getConsentAuditLogs(),
       ]);
-      exportConsentLogsCSV(records, auditLogs);
+      exportConsentLogsCSV(records, auditLogs, participants);
       toast.success('Consent logs diekspor');
     } catch {
       toast.error('Gagal mengekspor consent logs');
